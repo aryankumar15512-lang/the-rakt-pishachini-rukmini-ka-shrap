@@ -446,6 +446,7 @@ export class RaktPishachiniGame extends xb.Script {
   private lastMouseY = 0;
   private isPcMouseDragging = false;
   private pcDragMovedDist = 0;
+  public isLocked = false;
   private lookInput = {
     turnLeft: false,
     turnRight: false,
@@ -2330,10 +2331,9 @@ export class RaktPishachiniGame extends xb.Script {
   }
 
   public isPointerLockActive(): boolean {
-    const lockedEl = document.pointerLockElement;
-    if (!lockedEl) return false;
-    const canvas = this.getGameCanvas();
-    return lockedEl === canvas || lockedEl === document.body;
+    const locked = Boolean(document.pointerLockElement);
+    this.isLocked = locked;
+    return locked;
   }
 
   private ensureSimulatorControlsDisabled() {
@@ -2376,6 +2376,53 @@ export class RaktPishachiniGame extends xb.Script {
     return false;
   }
 
+  /**
+   * Synchronously calls requestPointerLock() inside a desktop user click gesture
+   * (Lobby START / CONTINUE, Settings Close/Resume, Skip Intro).
+   */
+  public requestImmediateDesktopPointerLock() {
+    if (this.controlsMode === 'mobile' || this.isMobileTouchControlsActive()) {
+      return;
+    }
+    if (document.pointerLockElement) {
+      this.isLocked = true;
+      return;
+    }
+    const target = this.getGameCanvas() || document.body;
+    try {
+      if (target && typeof target.requestPointerLock === 'function') {
+        const req = target.requestPointerLock() as unknown as
+          | Promise<void>
+          | undefined;
+        if (req && typeof req.catch === 'function') {
+          req.catch(() => {
+            if (target !== document.body && !document.pointerLockElement) {
+              try {
+                const bodyReq = document.body?.requestPointerLock?.() as unknown as
+                  | Promise<void>
+                  | undefined;
+                bodyReq?.catch?.(() => {});
+              } catch {
+                // Fallback to drag if iframe blocks pointer lock
+              }
+            }
+          });
+        }
+      }
+    } catch {
+      try {
+        if (!document.pointerLockElement && document.body?.requestPointerLock) {
+          const bodyReq = document.body.requestPointerLock() as unknown as
+            | Promise<void>
+            | undefined;
+          bodyReq?.catch?.(() => {});
+        }
+      } catch {
+        // Fallback to drag if iframe blocks pointer lock
+      }
+    }
+  }
+
   public requestGamePointerLock(forceFromMouseClick = false) {
     if (this.gameState !== 'playing' || this.isAnyBlockingOverlayOpen()) {
       return;
@@ -2388,11 +2435,15 @@ export class RaktPishachiniGame extends xb.Script {
       return;
     }
     document.body.classList.add('playing-match');
-    const canvas = this.getGameCanvas();
+    if (document.pointerLockElement) {
+      this.isLocked = true;
+      return;
+    }
+    const target = this.getGameCanvas() || document.body;
     const requestOnBody = () => {
       try {
         if (
-          document.pointerLockElement !== document.body &&
+          !document.pointerLockElement &&
           typeof document.body?.requestPointerLock === 'function'
         ) {
           const bodyReq = document.body.requestPointerLock() as unknown as
@@ -2409,29 +2460,28 @@ export class RaktPishachiniGame extends xb.Script {
       }
     };
 
-    if (!canvas || typeof canvas.requestPointerLock !== 'function') {
-      requestOnBody();
-      return;
-    }
-    if (this.isPointerLockActive()) return;
-
     try {
-      const req = canvas.requestPointerLock() as unknown as
-        | Promise<void>
-        | undefined;
-      if (req && typeof req.catch === 'function') {
-        req.catch(() => {
-          requestOnBody();
-        });
+      if (target && typeof target.requestPointerLock === 'function') {
+        const req = target.requestPointerLock() as unknown as
+          | Promise<void>
+          | undefined;
+        if (req && typeof req.catch === 'function') {
+          req.catch(() => {
+            if (target !== document.body) requestOnBody();
+          });
+        }
+      } else {
+        requestOnBody();
       }
     } catch {
-      requestOnBody();
+      if (target !== document.body) requestOnBody();
     }
   }
 
   public releaseGamePointerLock() {
     this.suppressNextPointerLockPause = true;
     this.hadPointerLock = false;
+    this.isLocked = false;
     this.isPcMouseDragging = false;
     this.hasLastMouse = false;
     document.body.classList.remove(
@@ -2680,9 +2730,10 @@ export class RaktPishachiniGame extends xb.Script {
 
   private setupKeyboardInput() {
     document.addEventListener('pointerlockchange', () => {
-      const isLocked = this.isPointerLockActive();
-      document.body.classList.toggle('pointer-locked', isLocked);
-      if (isLocked) {
+      const locked = Boolean(document.pointerLockElement);
+      this.isLocked = locked;
+      document.body.classList.toggle('pointer-locked', locked);
+      if (locked) {
         this.hadPointerLock = true;
         this.isPcMouseDragging = false;
         document.body.classList.remove('pc-mouse-dragging');
@@ -2698,7 +2749,7 @@ export class RaktPishachiniGame extends xb.Script {
           this.pauseGame();
         }
       }
-      this.onPointerLockChange?.(isLocked);
+      this.onPointerLockChange?.(locked);
     });
 
     window.addEventListener('keydown', (e) => {
@@ -2872,33 +2923,48 @@ export class RaktPishachiniGame extends xb.Script {
       document.body.classList.remove('pc-mouse-dragging');
     });
 
+    // Immediately lock mouse on mousedown anywhere on the 3D canvas (no preventDefault so Pointer Lock is never blocked)
+    window.addEventListener('mousedown', (e: MouseEvent) => {
+      if (this.gameState !== 'playing' || this.isAnyBlockingOverlayOpen()) {
+        return;
+      }
+      if (e.button !== 0) return;
+      if (this.controlsMode === 'mobile') return;
+      if (isInteractiveUiTarget(e.target)) return;
+      if (!document.pointerLockElement) {
+        this.requestGamePointerLock(true);
+      }
+    });
+
     window.addEventListener('click', (e: MouseEvent) => {
       if (this.gameState !== 'playing' || this.isAnyBlockingOverlayOpen()) {
         return;
       }
       if (this.controlsMode === 'mobile') return;
       if (isInteractiveUiTarget(e.target)) return;
-      if (this.pcDragMovedDist >= 6) return;
-      this.requestGamePointerLock(true);
+      if (!document.pointerLockElement) {
+        this.requestGamePointerLock(true);
+      }
     });
 
     // Full 360-degree PC mouse look on document mousemove:
-    // 1) Pointer Lock active (document.pointerLockElement === canvas or document.body)
-    // 2) Smooth Left-Mouse-Button drag fallback when Pointer Lock is blocked/unavailable in an iframe
+    // 1) Pointer Lock active (isLocked / document.pointerLockElement): free rotation with NO mouse button held
+    // 2) Smooth Left-Mouse-Button drag fallback ONLY when not locked (e.g., restricted iframe)
     document.addEventListener('mousemove', (e: MouseEvent) => {
       if (this.gameState !== 'playing' || this.isAnyBlockingOverlayOpen()) {
         return;
       }
       if (this.isMovementLockedByEntrySequence()) return;
 
-      if (this.isPointerLockActive()) {
+      const locked = this.isLocked || Boolean(document.pointerLockElement);
+      if (locked) {
         const dx = THREE.MathUtils.clamp(e.movementX || 0, -220, 220);
         const dy = THREE.MathUtils.clamp(e.movementY || 0, -220, 220);
         this.applyCameraLookDelta(dx, dy, 0.0022);
         return;
       }
 
-      // Iframe / Preview Fallback: hold Left Mouse Button and drag anywhere on canvas to look 360°
+      // Fallback ONLY when Pointer Lock is not active: hold Left Mouse Button and drag on canvas
       if (this.isPcMouseDragging) {
         if ((e.buttons & 1) === 0) {
           this.isPcMouseDragging = false;

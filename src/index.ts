@@ -1707,12 +1707,18 @@ document.addEventListener('DOMContentLoaded', () => {
     startVisualNovelStory(vnDirector.currentSceneIndex);
   });
 
-  vnStartGameBtn.addEventListener('click', launchDefaultSingleplayerMatch);
+  vnStartGameBtn.addEventListener('click', () => {
+    launchDefaultSingleplayerMatch();
+    game.requestImmediateDesktopPointerLock();
+  });
   vnOpenLobbyBtn.addEventListener('click', openLobbySetupScreen);
   vnReplayStoryBtn.addEventListener('click', () => startVisualNovelStory(0));
 
   // 3D Intro Cut-to-Black Screen Controls
-  pressStartBtn.addEventListener('click', launchDefaultSingleplayerMatch);
+  pressStartBtn.addEventListener('click', () => {
+    launchDefaultSingleplayerMatch();
+    game.requestImmediateDesktopPointerLock();
+  });
   openLobbyBtn.addEventListener('click', openLobbySetupScreen);
   replayIntroBtn.addEventListener('click', () => startVisualNovelStory(0));
 
@@ -2942,7 +2948,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   igSettingsCloseX?.addEventListener('click', (e) => {
     e.stopPropagation();
+    const wasGameplay =
+      pausedFromState === 'gameplay' ||
+      (pausedFromState !== 'lobby' &&
+        pausedFromState !== 'intro_story' &&
+        !hud.classList.contains('hidden'));
     resumeFromPauseMenu();
+    if (wasGameplay) {
+      game.requestImmediateDesktopPointerLock();
+    }
   });
 
   openLobbySettingsModal = () => {
@@ -3873,7 +3887,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   resumeGameBtn?.addEventListener('click', (e) => {
     e.stopPropagation();
+    const wasGameplay =
+      pausedFromState === 'gameplay' ||
+      (pausedFromState !== 'lobby' &&
+        pausedFromState !== 'intro_story' &&
+        !hud.classList.contains('hidden'));
     resumeFromPauseMenu();
+    if (wasGameplay) {
+      game.requestImmediateDesktopPointerLock();
+    }
   });
 
   pauseSkipStoryBtn?.addEventListener('click', (e) => {
@@ -3884,6 +3906,7 @@ document.addEventListener('DOMContentLoaded', () => {
     pauseModal?.classList.add('hidden');
     pauseSkipStoryBtn.classList.add('hidden');
     launchDefaultSingleplayerMatch();
+    game.requestImmediateDesktopPointerLock();
   });
 
   pauseExitMenuBtn?.addEventListener('click', (e) => {
@@ -4031,6 +4054,7 @@ document.addEventListener('DOMContentLoaded', () => {
     playerNameInput.value = game.playerName;
     langSelect.value = game.lang;
     skipStoryToGame(true);
+    game.requestImmediateDesktopPointerLock();
   });
 
   newGameBtn.addEventListener('click', (e) => {
@@ -4054,6 +4078,7 @@ document.addEventListener('DOMContentLoaded', () => {
     game.setDifficulty(selectedDifficulty);
     if (introStoryPreference === 'skip') {
       launchDefaultSingleplayerMatch();
+      game.requestImmediateDesktopPointerLock();
     } else {
       startStorySequence(1);
     }
@@ -4111,6 +4136,7 @@ document.addEventListener('DOMContentLoaded', () => {
     pauseModal?.classList.add('hidden');
     pauseSkipStoryBtn?.classList.add('hidden');
     launchDefaultSingleplayerMatch();
+    game.requestImmediateDesktopPointerLock();
   });
 
   const unlockVNStoryAudio = () => {
