@@ -1,0 +1,2647 @@
+<!doctype html>
+<html lang="hi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>द रक्त पिशाचिनी: रुक्मिणी का श्राप</title>
+    <meta
+      name="description"
+      content="Single Player First Person Horror Story Game in Thakur Mansion powered by XR Blocks, Three.js, and Gemini AI."
+    />
+    <meta name="theme-color" content="#7f1d1d" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="Rakt Pishachini" />
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="./icons/icon-192.png"
+    />
+    <meta
+      property="og:title"
+      content="द रक्त पिशाचिनी: रुक्मिणी का श्राप"
+    />
+    <meta
+      property="og:description"
+      content="Single Player First Person Horror Story Game in Thakur Mansion powered by XR Blocks, Three.js, and Gemini AI."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/index.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- First Person Player Hand visible on screen during gameplay -->
+    <div id="player-hand-view" class="player-hand hidden" aria-hidden="true"></div>
+
+    <!-- Global Top-Right Settings Gear Button (Hidden in Single Player Mode) -->
+    <button id="global-settings-gear-btn" class="global-settings-gear-btn hidden" title="Settings &amp; Lobby">
+      ⚙️ Settings
+    </button>
+
+    <!-- SETTINGS MODAL -->
+    <div id="settings-modal" class="modal-backdrop hidden">
+      <div class="settings-modal-card">
+        <div class="modal-header-row">
+          <h2>⚙️ Game Settings &amp; Co-Op Lobby</h2>
+          <button id="close-settings-modal-btn" class="skip-btn">✖ Close</button>
+        </div>
+
+        <div class="settings-section">
+          <h3>Player Identification Code</h3>
+          <div class="player-code-row">
+            <span id="player-code-display" class="player-code-tag">RP-4921-78</span>
+            <button id="regenerate-code-btn" class="btn btn-secondary btn-inline">Generate New</button>
+            <button id="copy-code-btn" class="btn btn-secondary btn-inline">Copy Code</button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>Scan / Show QR Code</h3>
+          <div class="qr-code-container">
+            <canvas id="settings-qr-canvas" width="130" height="130"></canvas>
+            <div class="qr-info-text">Scan with your mobile device to join this co-op room instantly.</div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="lobby-header-flex">
+            <h3>Create a Lobby (4 Slots)</h3>
+            <span class="host-badge">👑 Host Mode</span>
+          </div>
+          <div id="settings-lobby-slots" class="settings-slots-grid"></div>
+          <div class="lobby-actions-footer">
+            <button id="host-start-match-btn" class="btn press-start-btn">
+              🚀 Start Co-Op Match (Host Only)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- 0. PRO ANDROID HORROR LAUNCH SEQUENCE (3-SCREEN FLOW ON GAME OPEN) -->
+    <div id="launch-sequence-overlay" class="launch-overlay" aria-live="polite">
+      <!-- Screen 1: Studio Logo Splash (2.5s) -->
+      <section id="launch-screen-studio" class="launch-screen launch-studio-screen active" aria-label="Studio Splash">
+        <div class="studio-emblem-wrap">
+          <!-- Clean swappable crimson studio crest emblem -->
+          <svg
+            class="studio-crest-svg"
+            viewBox="0 0 120 120"
+            width="108"
+            height="108"
+            aria-hidden="true"
+          >
+            <defs>
+              <linearGradient id="studioCrimsonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#f87171" />
+                <stop offset="50%" stop-color="#dc2626" />
+                <stop offset="100%" stop-color="#7f1d1d" />
+              </linearGradient>
+              <linearGradient id="studioGoldTrim" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#fde68a" />
+                <stop offset="100%" stop-color="#b45309" />
+              </linearGradient>
+            </defs>
+            <polygon
+              points="60,8 106,34 106,86 60,112 14,86 14,34"
+              fill="rgba(127,29,29,0.18)"
+              stroke="url(#studioCrimsonGrad)"
+              stroke-width="2.5"
+            />
+            <polygon
+              points="60,18 96,39 96,81 60,102 24,81 24,39"
+              fill="none"
+              stroke="url(#studioGoldTrim)"
+              stroke-width="1"
+              opacity="0.65"
+            />
+            <path
+              d="M60 28 C72 44 76 56 76 66 C76 76 69 84 60 84 C51 84 44 76 44 66 C44 56 48 44 60 28 Z"
+              fill="url(#studioCrimsonGrad)"
+            />
+            <path
+              d="M60 44 C66 53 68 60 68 66 C68 72 64.5 76 60 76 C55.5 76 52 72 52 66 C52 60 54 53 60 44 Z"
+              fill="#fef3c7"
+              opacity="0.92"
+            />
+            <path
+              d="M36 86 L60 96 L84 86"
+              fill="none"
+              stroke="url(#studioGoldTrim)"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+          <div class="studio-wordmark">QWG ARYAN STUDIOS</div>
+          <div class="studio-submark">PRESENTS</div>
+        </div>
+      </section>
+
+      <!-- Screen 2: Key-Art Loading Screen (3s) -->
+      <section id="launch-screen-loading" class="launch-screen launch-keyart-screen hidden" aria-label="Loading Game Resources">
+        <div class="launch-keyart-backdrop" aria-hidden="true"></div>
+        <div class="launch-keyart-scrim" aria-hidden="true"></div>
+        <div class="launch-loading-top">
+          <span class="launch-top-brand">THE RAKT PISHACHINI</span>
+        </div>
+        <div class="launch-loading-footer">
+          <div class="launch-loading-meta">
+            <span id="launch-loading-text" class="launch-loading-label">
+              LOADING RESOURCES, PLEASE WAIT...
+            </span>
+            <span id="launch-loading-pct" class="launch-loading-pct tabular-readout">
+              0%
+            </span>
+          </div>
+          <div class="launch-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="launch-progress-bar">
+            <div id="launch-progress-fill" class="launch-progress-fill"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: Tap to Begin & Disclaimer Popup -->
+      <section id="launch-screen-tap" class="launch-screen launch-tap-screen hidden" role="button" tabindex="0" aria-label="Tap to Begin">
+        <div class="launch-keyart-backdrop" aria-hidden="true"></div>
+        <div class="launch-tap-scrim" aria-hidden="true"></div>
+        <div class="launch-tap-version">v1.0.0 DEMO</div>
+        <div class="launch-tap-center">
+          <div class="launch-tap-kicker">1992 · THAKUR HAVELI</div>
+          <h1 class="launch-tap-title">THE RAKT PISHACHINI</h1>
+          <div class="launch-tap-subtitle">RUKMINI KA SHRAP</div>
+        </div>
+        <div class="launch-tap-prompt-wrap">
+          <div id="launch-tap-prompt" class="launch-tap-prompt">TAP TO BEGIN</div>
+          <button id="launch-privacy-link" type="button" class="launch-privacy-link">
+            Privacy Policy &amp; Terms
+          </button>
+        </div>
+
+        <!-- Disclaimer INFORMATION Modal -->
+        <div id="launch-disclaimer-modal" class="launch-disclaimer-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="launch-disclaimer-heading">
+          <div class="launch-disclaimer-card">
+            <div class="launch-disclaimer-bar"></div>
+            <h2 id="launch-disclaimer-heading" class="launch-disclaimer-title">INFORMATION</h2>
+            <p class="launch-disclaimer-body">
+              The Rakt Pishachini is a fictional horror experience set in a virtual world. Play with headphones for the best 3D audio.
+            </p>
+            <button id="launch-disclaimer-confirm-btn" type="button" class="launch-confirm-btn">
+              CONFIRM
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 1. INTERACTIVE 3D HORROR MAIN LOBBY -->
+    <div id="menu-screen" class="screen horror-lobby-screen">
+      <!-- Live 3D Survivor (Aarav) in front of misty, lantern-lit Thakur Haveli -->
+      <div id="lobby-3d-stage" class="lobby-3d-stage"></div>
+      <div class="lobby-vignette" aria-hidden="true"></div>
+
+      <!-- Top Bar: Left Profile Banner + Right Settings & Friends Icons -->
+      <div class="lobby-topbar">
+        <!-- Top-Left Player Profile Banner -->
+        <div
+          id="lobby-profile-banner"
+          role="button"
+          tabindex="0"
+          class="lobby-profile-banner"
+          aria-label="Open Player Profile"
+        >
+          <div class="lobby-avatar-frame" aria-hidden="true">
+            <svg viewBox="0 0 64 64" width="44" height="44" class="lobby-avatar-svg">
+              <defs>
+                <radialGradient id="avatarGlow" cx="50%" cy="40%" r="60%">
+                  <stop offset="0%" stop-color="#991b1b" />
+                  <stop offset="100%" stop-color="#140709" />
+                </radialGradient>
+              </defs>
+              <rect width="64" height="64" rx="8" fill="url(#avatarGlow)" />
+              <circle cx="32" cy="24" r="11" fill="#d6a57c" />
+              <path d="M21 22 C21 12 43 12 43 22 C40 16 24 16 21 22 Z" fill="#181214" />
+              <path d="M13 60 C15 44 22 38 32 38 C42 38 49 44 51 60 Z" fill="#231c1f" stroke="#b45309" stroke-width="1.5" />
+              <circle cx="48" cy="46" r="5" fill="#fbbf24" opacity="0.88" />
+            </svg>
+          </div>
+          <div class="lobby-profile-info">
+            <div class="lobby-profile-name-row">
+              <span id="lobby-player-name" class="lobby-player-name">Aarav</span>
+              <span id="lobby-player-level" class="lobby-player-level tabular-readout">Lv. 1</span>
+            </div>
+            <div class="lobby-uid-row">
+              <span id="lobby-player-uid" class="lobby-player-uid tabular-readout">UID: 19920041</span>
+              <button
+                id="lobby-copy-uid-btn"
+                type="button"
+                class="lobby-banner-copy-uid"
+                title="Copy Player UID"
+                aria-label="Copy Player UID"
+              >
+                Copy UID
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top-Right Clean Utility Icons: Live FPS, Mail, News, Install, Friends, Settings -->
+        <div class="lobby-top-actions">
+          <div
+            id="lobby-fps-badge"
+            class="lobby-fps-badge is-good tabular-readout"
+            title="Live Lobby Frame Rate"
+            aria-label="Live FPS"
+          >
+            60 FPS
+          </div>
+          <button
+            id="lobby-mail-btn"
+            type="button"
+            class="lobby-icon-btn"
+            title="Developer Mail"
+            aria-label="Open Developer Mail"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="2" y="4" width="20" height="16" rx="2" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+            <span id="lobby-mail-dot" class="lobby-unread-dot" aria-label="Unread developer mail"></span>
+          </button>
+          <button
+            id="lobby-news-btn"
+            type="button"
+            class="lobby-icon-btn"
+            title="Patch Notes &amp; News"
+            aria-label="Open Patch Notes and News"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z" />
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+            </svg>
+          </button>
+          <button
+            id="pwa-install-btn"
+            class="lobby-icon-btn lobby-install-icon-btn hidden"
+            type="button"
+            title="Install App"
+            aria-label="Install App"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </button>
+          <button
+            id="lobby-friends-toggle-btn"
+            type="button"
+            class="lobby-icon-btn"
+            title="Friends &amp; Teamcode"
+            aria-label="Toggle Friends &amp; Teamcode Drawer"
+            aria-expanded="false"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </button>
+          <button
+            id="lobby-settings-btn"
+            type="button"
+            class="lobby-icon-btn lobby-settings-gear-btn"
+            title="Settings"
+            aria-label="Open Settings"
+          >
+            <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Subtle Inline Notice Toast -->
+      <div
+        id="menu-status-notice"
+        class="lobby-toast hidden"
+        role="status"
+        aria-live="polite"
+      ></div>
+
+      <!-- Center Rotate Cue (Minimal, unobtrusive) -->
+      <div class="lobby-rotate-cue" aria-hidden="true">
+        <span>↔ Drag to rotate Aarav 360°</span>
+      </div>
+
+      <!-- Left Vertical Horror Sidebar (4 Dark-Glass Icon Buttons) -->
+      <nav
+        id="lobby-left-sidebar"
+        class="lobby-left-sidebar"
+        aria-label="Lobby Archive Navigation"
+      >
+        <button
+          id="lobby-nav-characters"
+          type="button"
+          class="lobby-side-btn"
+          aria-label="Characters"
+        >
+          <span class="lobby-side-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </span>
+          <span class="lobby-side-label">CHARACTERS</span>
+        </button>
+
+        <button
+          id="lobby-nav-gear"
+          type="button"
+          class="lobby-side-btn"
+          aria-label="Survival Gear"
+        >
+          <span class="lobby-side-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6 6 18" />
+              <path d="m15 3 6 6-2 2-6-6 2-2Z" />
+              <path d="M5 13 3 21l8-2 5-5-6-6-5 5Z" />
+            </svg>
+          </span>
+          <span class="lobby-side-label">GEAR</span>
+        </button>
+
+        <button
+          id="lobby-nav-diary"
+          type="button"
+          class="lobby-side-btn"
+          aria-label="Rukmini's Cursed Diary"
+        >
+          <span class="lobby-side-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+              <path d="M8 7h8" />
+              <path d="M8 11h6" />
+            </svg>
+          </span>
+          <span class="lobby-side-label">DIARY</span>
+        </button>
+
+        <button
+          id="lobby-nav-badges"
+          type="button"
+          class="lobby-side-btn"
+          aria-label="Demo Achievements and Badges"
+        >
+          <span class="lobby-side-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="9" r="6" />
+              <path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526" />
+            </svg>
+          </span>
+          <span class="lobby-side-label">BADGES</span>
+        </button>
+      </nav>
+
+      <!-- Right Side: Collapsible Friends & TEAMCODE Drawer -->
+      <aside
+        id="lobby-friends-drawer"
+        class="lobby-friends-drawer collapsed"
+        aria-label="Friends and Teamcode"
+      >
+        <div class="friends-drawer-head">
+          <span class="friends-drawer-title">SQUAD &amp; FRIENDS</span>
+          <button
+            id="lobby-friends-close-btn"
+            type="button"
+            class="friends-drawer-close"
+            aria-label="Collapse Friends Panel"
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- TEAMCODE Trigger & Inline Squad Code Panel -->
+        <div class="teamcode-section">
+          <button
+            id="lobby-teamcode-btn"
+            type="button"
+            class="teamcode-primary-btn"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span>TEAMCODE</span>
+          </button>
+          <div class="teamcode-demo-caption">
+            Single Player Demo — Online Co-Op Coming Soon
+          </div>
+
+          <div id="lobby-teamcode-panel" class="teamcode-panel hidden">
+            <div class="teamcode-gen-row">
+              <span id="lobby-teamcode-value" class="teamcode-code tabular-readout">RP-842910</span>
+              <button id="lobby-teamcode-gen-btn" type="button" class="teamcode-mini-btn">New</button>
+              <button id="lobby-teamcode-copy-btn" type="button" class="teamcode-mini-btn">Copy</button>
+            </div>
+            <div class="teamcode-join-row">
+              <input
+                id="lobby-teamcode-input"
+                type="text"
+                maxlength="10"
+                placeholder="Enter Squad Code..."
+                class="teamcode-input"
+                aria-label="Enter Squad Code"
+              />
+              <button id="lobby-teamcode-join-btn" type="button" class="teamcode-join-btn">
+                Join
+              </button>
+            </div>
+            <div id="lobby-teamcode-feedback" class="teamcode-feedback hidden"></div>
+          </div>
+        </div>
+
+        <!-- Online Friends List with + Invite Icons -->
+        <div class="friends-list-heading">
+          <span>ONLINE FRIENDS</span>
+          <span class="friends-count tabular-readout">4</span>
+        </div>
+        <div id="lobby-friends-list" class="friends-list">
+          <div class="friend-row" data-friend-name="Kabir">
+            <div class="friend-avatar">K</div>
+            <div class="friend-meta">
+              <div class="friend-name">Kabir</div>
+              <div class="friend-status">Online · Ready</div>
+            </div>
+            <button type="button" class="friend-invite-btn" data-invite-friend="Kabir" aria-label="Invite Kabir">+</button>
+          </div>
+          <div class="friend-row" data-friend-name="Riya">
+            <div class="friend-avatar">R</div>
+            <div class="friend-meta">
+              <div class="friend-name">Riya</div>
+              <div class="friend-status">Online · In Lobby</div>
+            </div>
+            <button type="button" class="friend-invite-btn" data-invite-friend="Riya" aria-label="Invite Riya">+</button>
+          </div>
+          <div class="friend-row" data-friend-name="Dev">
+            <div class="friend-avatar">D</div>
+            <div class="friend-meta">
+              <div class="friend-name">Dev</div>
+              <div class="friend-status">Online · Ready</div>
+            </div>
+            <button type="button" class="friend-invite-btn" data-invite-friend="Dev" aria-label="Invite Dev">+</button>
+          </div>
+          <div class="friend-row" data-friend-name="Vikram">
+            <div class="friend-avatar">V</div>
+            <div class="friend-meta">
+              <div class="friend-name">Vikram</div>
+              <div class="friend-status">Online · Idle</div>
+            </div>
+            <button type="button" class="friend-invite-btn" data-invite-friend="Vikram" aria-label="Invite Vikram">+</button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Bottom Bar: Horror Tip Ticker (Left) + Clickable Mode & Difficulty Card & START/CONTINUE (Right) -->
+      <div class="lobby-bottom-bar">
+        <div class="lobby-bottom-left-stack">
+          <div class="lobby-bottom-brand">
+            <div class="lobby-game-wordmark">THE RAKT PISHACHINI</div>
+            <div class="lobby-game-submark">Rukmini Ka Shrap · © QWG Aryan Studios</div>
+          </div>
+          <div id="lobby-tip-ticker" class="lobby-tip-ticker" aria-live="polite">
+            <span class="lobby-tip-dot" aria-hidden="true"></span>
+            <span id="lobby-tip-text" class="lobby-tip-text">
+              Tip: Stand completely still when Rukmini approaches — she is blind and hunts by sound.
+            </span>
+          </div>
+        </div>
+
+        <div class="lobby-launch-dock">
+          <button
+            id="lobby-mode-card"
+            type="button"
+            class="lobby-mode-card"
+            aria-label="Select Mode, Difficulty, and Intro Story"
+          >
+            <div class="lobby-mode-card-left">
+              <span id="lobby-mode-kicker" class="lobby-mode-kicker">SOLO DEMO • STORY ON</span>
+              <span id="lobby-mode-summary" class="lobby-mode-label">THAKUR HAVELI • NORMAL</span>
+            </div>
+            <span class="lobby-mode-chevron" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </span>
+          </button>
+          <div class="lobby-cta-row">
+            <button
+              id="continue-game-btn"
+              type="button"
+              class="lobby-continue-btn hidden"
+            >
+              CONTINUE
+            </button>
+            <button
+              id="new-game-btn"
+              type="button"
+              class="lobby-start-btn"
+            >
+              START
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hidden Legacy DOM hooks kept intact so existing script bindings remain unbroken -->
+      <div class="hidden" aria-hidden="true">
+        <button id="open-options-btn" type="button"></button>
+        <button id="exit-game-btn" type="button"></button>
+        <select id="lang-select">
+          <option value="hi" selected>हिंदी (Hindi Audio)</option>
+          <option value="en">English Audio</option>
+        </select>
+        <input type="text" id="player-name" value="Aarav" />
+        <div id="player-name-error" class="hidden"></div>
+        <button id="create-room-btn" type="button"></button>
+        <input type="text" id="room-code-input" value="1992" />
+        <button id="join-room-btn" type="button"></button>
+        <div id="player-cards-grid"></div>
+        <div id="relics-grid"></div>
+        <span id="relic-collected-count"></span>
+        <div id="lobby-status-box"></div>
+        <button id="back-to-story-btn" type="button"></button>
+        <button id="sim-walk-btn" type="button"></button>
+        <button id="sim-run-btn" type="button"></button>
+        <button id="sim-scream-btn" type="button"></button>
+        <button id="burn-all-ritual-btn" type="button"></button>
+        <span id="noise-status-label"></span>
+        <div id="noise-meter-bar"></div>
+        <span id="rukmini-distance-label"></span>
+      </div>
+    </div>
+
+    <!-- 1B. SLEEK PLAYER PROFILE MODAL (With 3D Character View, Bio & Career Stats) -->
+    <div id="profile-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="profile-modal-heading">
+      <div class="profile-modal-card">
+        <div class="profile-modal-header">
+          <div>
+            <h2 id="profile-modal-heading" class="profile-modal-title">SURVIVOR PROFILE</h2>
+            <div class="profile-modal-sub">Thakur Haveli Dossier · Drag 3D character to inspect</div>
+          </div>
+          <button id="profile-modal-close-btn" type="button" class="ig-settings-close-x" aria-label="Close Profile">
+            ✕
+          </button>
+        </div>
+
+        <div class="profile-modal-body">
+          <!-- Left: Live 3D Character Showcase (Aarav) -->
+          <div class="profile-3d-column">
+            <div id="profile-3d-viewport" class="profile-3d-viewport"></div>
+            <div class="profile-3d-caption">
+              <span>Aarav · Survivor</span>
+              <span aria-hidden="true">·</span>
+              <span>↔ Drag to rotate</span>
+            </div>
+          </div>
+
+          <!-- Right: Identity, Editable Nickname, Bio & Career Stats -->
+          <div class="profile-details-column">
+            <div class="profile-identity-row">
+              <div class="profile-identity-text">
+                <div class="profile-name-line">
+                  <span id="profile-display-name" class="profile-display-name">Aarav</span>
+                  <span id="profile-display-level" class="profile-display-level tabular-readout">Lv. 1</span>
+                </div>
+                <div class="profile-uid-line">
+                  <span id="profile-display-uid" class="tabular-readout">UID: 19920041</span>
+                  <button id="profile-copy-uid-btn" type="button" class="profile-copy-uid-btn">Copy UID</button>
+                </div>
+                <div class="profile-rename-row">
+                  <input
+                    id="profile-name-input"
+                    type="text"
+                    maxlength="20"
+                    value="Aarav"
+                    class="pro-text-input"
+                    aria-label="Edit Player Nickname"
+                    placeholder="Enter nickname..."
+                  />
+                  <button id="profile-rename-btn" type="button" class="profile-copy-uid-btn profile-rename-btn">
+                    Rename
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="profile-bio-block">
+              <label for="profile-bio-input" class="profile-section-label">PLAYER BIO</label>
+              <textarea
+                id="profile-bio-input"
+                class="profile-bio-input"
+                rows="2"
+                maxlength="140"
+                placeholder="Write your survivor bio..."
+              >Trapped inside the 1992 Thakur Haveli. Silence is the only way out.</textarea>
+            </div>
+
+            <div class="profile-stats-grid">
+              <div class="profile-stat-card">
+                <div class="profile-stat-label">TOTAL ESCAPES</div>
+                <div id="profile-stat-escapes" class="profile-stat-val tabular-readout">0</div>
+              </div>
+              <div class="profile-stat-card">
+                <div class="profile-stat-label">RELICS BURNED</div>
+                <div id="profile-stat-relics" class="profile-stat-val tabular-readout">0</div>
+              </div>
+              <div class="profile-stat-card">
+                <div class="profile-stat-label">FRIENDS RESCUED</div>
+                <div id="profile-stat-friends" class="profile-stat-val tabular-readout">0</div>
+              </div>
+              <div class="profile-stat-card">
+                <div class="profile-stat-label">TOTAL DEATHS</div>
+                <div id="profile-stat-deaths" class="profile-stat-val tabular-readout">0</div>
+              </div>
+              <div class="profile-stat-card profile-stat-wide">
+                <div class="profile-stat-label">BEST ESCAPE TIME</div>
+                <div id="profile-stat-besttime" class="profile-stat-val tabular-readout">--:--</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1C. LOBBY SIDEBAR MODAL 1: CHARACTERS (Aarav Playable + Kabir, Riya, Dev Companions) -->
+    <div id="lobby-characters-modal" class="modal-backdrop lobby-archive-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="lobby-characters-heading">
+      <div class="lobby-archive-card">
+        <div class="profile-modal-header">
+          <div>
+            <h2 id="lobby-characters-heading" class="profile-modal-title">SURVIVORS &amp; COMPANIONS</h2>
+            <div class="profile-modal-sub">Kali Ghati Road · Four friends trapped inside Thakur Haveli</div>
+          </div>
+          <button type="button" class="ig-settings-close-x lobby-modal-close" data-close-lobby-modal="lobby-characters-modal" aria-label="Close Characters">
+            ✕
+          </button>
+        </div>
+        <div class="lobby-archive-body">
+          <div class="survivor-cards-grid">
+            <article class="survivor-card is-playable">
+              <div class="survivor-card-top">
+                <div class="survivor-monogram is-aarav" aria-hidden="true">A</div>
+                <div>
+                  <h3 class="survivor-name">Aarav</h3>
+                  <div class="survivor-role is-gold">Playable Survivor</div>
+                </div>
+              </div>
+              <p class="survivor-bio">
+                Calm under dread and the last friend left unbound after the blackout. Armed only with a flashlight, steady breath, and wits, Aarav must break Rukmini's 1992 curse before dawn.
+              </p>
+            </article>
+
+            <article class="survivor-card">
+              <div class="survivor-card-top">
+                <div class="survivor-monogram" aria-hidden="true">K</div>
+                <div>
+                  <h3 class="survivor-name">Kabir</h3>
+                  <div class="survivor-role">Story Companion</div>
+                </div>
+              </div>
+              <p class="survivor-bio">
+                The fearless skeptic who insisted on taking the shortcut through Kali Ghati. Dragged into the Haveli's cursed halls when the red mist rolled in—awaiting rescue from his chains.
+              </p>
+            </article>
+
+            <article class="survivor-card">
+              <div class="survivor-card-top">
+                <div class="survivor-monogram" aria-hidden="true">R</div>
+                <div>
+                  <h3 class="survivor-name">Riya</h3>
+                  <div class="survivor-role">Story Companion</div>
+                </div>
+              </div>
+              <p class="survivor-bio">
+                Sharp-eyed historian who first recognized the 1992 bridal sindoor sigils on the Haveli pillars. Held captive deep inside the upper wings while Rukmini patrols below.
+              </p>
+            </article>
+
+            <article class="survivor-card">
+              <div class="survivor-card-top">
+                <div class="survivor-monogram" aria-hidden="true">D</div>
+                <div>
+                  <h3 class="survivor-name">Dev</h3>
+                  <div class="survivor-role">Story Companion</div>
+                </div>
+              </div>
+              <p class="survivor-bio">
+                The loyal driver whose stalled SUV stranded the group outside the iron gate. Taken during the lantern flicker—freeing him brings the whole crew closer to surviving the night.
+              </p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1D. LOBBY SIDEBAR MODAL 2: SURVIVAL GEAR GUIDE -->
+    <div id="lobby-gear-modal" class="modal-backdrop lobby-archive-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="lobby-gear-heading">
+      <div class="lobby-archive-card">
+        <div class="profile-modal-header">
+          <div>
+            <h2 id="lobby-gear-heading" class="profile-modal-title">SURVIVAL GEAR</h2>
+            <div class="profile-modal-sub">No weapons—only stealth, light, sacred ash, and distraction</div>
+          </div>
+          <button type="button" class="ig-settings-close-x lobby-modal-close" data-close-lobby-modal="lobby-gear-modal" aria-label="Close Survival Gear">
+            ✕
+          </button>
+        </div>
+        <div class="lobby-archive-body">
+          <div class="gear-cards-grid">
+            <article class="gear-card">
+              <div class="gear-card-head">
+                <span class="gear-icon-box" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 6 6 18" />
+                    <path d="m15 3 6 6-2 2-6-6 2-2Z" />
+                    <path d="M5 13 3 21l8-2 5-5-6-6-5 5Z" />
+                  </svg>
+                </span>
+                <div>
+                  <h3 class="gear-title">Flashlight</h3>
+                  <div class="gear-tag">Always Equipped</div>
+                </div>
+              </div>
+              <p class="gear-desc">
+                Cuts through the pitch-black 32-room Haveli and reveals hidden keys, relics, and locked doors. Flickers crimson whenever Blind Rukmini stalks nearby.
+              </p>
+            </article>
+
+            <article class="gear-card">
+              <div class="gear-card-head">
+                <span class="gear-icon-box is-crimson" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2c2.5 4 6 6.5 6 11a6 6 0 1 1-12 0c0-4.5 3.5-7 6-11Z" />
+                  </svg>
+                </span>
+                <div>
+                  <h3 class="gear-title">Blessed Bhabhut</h3>
+                  <div class="gear-tag is-gold">1-Time Stun · Press F</div>
+                </div>
+              </div>
+              <p class="gear-desc">
+                Sacred temple ash consecrated against the curse. Press <strong>F</strong> (or tap the Bhabhut HUD button) when cornered to stun Rukmini and sprint to safety.
+              </p>
+            </article>
+
+            <article class="gear-card">
+              <div class="gear-card-head">
+                <span class="gear-icon-box" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M7 4h10l-1.5 14a3 3 0 0 1-3 2.7h-1a3 3 0 0 1-3-2.7L7 4Z" />
+                    <path d="M6 4h12" />
+                  </svg>
+                </span>
+                <div>
+                  <h3 class="gear-title">Clay Kulhad</h3>
+                  <div class="gear-tag">Distraction · Press G</div>
+                </div>
+              </div>
+              <p class="gear-desc">
+                Earthen clay cups scattered across the Haveli. Press <strong>G</strong> (or tap Throw) to shatter a Kulhad down another corridor and lure Blind Rukmini away from your path.
+              </p>
+            </article>
+
+            <article class="gear-card">
+              <div class="gear-card-head">
+                <span class="gear-icon-box is-gold" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="7.5" cy="15.5" r="4.5" />
+                    <path d="m21 2-9.6 9.6" />
+                    <path d="m15.5 7.5 3 3L22 7l-3-3" />
+                  </svg>
+                </span>
+                <div>
+                  <h3 class="gear-title">Named Keys</h3>
+                  <div class="gear-tag">Interact · Press E</div>
+                </div>
+              </div>
+              <p class="gear-desc">
+                Room-specific antique brass keys unlock sealed chambers, courtyard gates, and companion chains. Collect them with <strong>E</strong> and check your Backpack anytime.
+              </p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1E. LOBBY SIDEBAR MODAL 3: RUKMINI'S CURSED DIARY & SURVIVAL RULES -->
+    <div id="lobby-diary-modal" class="modal-backdrop lobby-archive-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="lobby-diary-heading">
+      <div class="lobby-archive-card">
+        <div class="profile-modal-header">
+          <div>
+            <h2 id="lobby-diary-heading" class="profile-modal-title">RUKMINI'S CURSED DIARY &amp; SURVIVAL RULES</h2>
+            <div class="profile-modal-sub">1992 Thakur Haveli Entry · Sound is your deadliest enemy</div>
+          </div>
+          <button type="button" class="ig-settings-close-x lobby-modal-close" data-close-lobby-modal="lobby-diary-modal" aria-label="Close Diary">
+            ✕
+          </button>
+        </div>
+        <div class="lobby-archive-body">
+          <blockquote class="diary-excerpt">
+            "On the wedding night of 1992, betrayal blinded her eyes—yet sharpened her ears to every trembling footstep inside the 32 rooms. When the silver payal jingles close, freeze your breath and become stone."
+          </blockquote>
+
+          <div class="diary-section-title">BLIND RUKMINI SOUND-HUNTING RADIUS</div>
+          <div class="sound-rules-grid">
+            <div class="sound-rule-card is-safe">
+              <div class="sound-rule-dist tabular-readout">0m</div>
+              <div class="sound-rule-label">Standing Still / Hiding</div>
+              <div class="sound-rule-note">Silent &amp; undetectable—freeze completely when she passes.</div>
+            </div>
+            <div class="sound-rule-card is-warn">
+              <div class="sound-rule-dist tabular-readout">14m</div>
+              <div class="sound-rule-label">Walking / Moving</div>
+              <div class="sound-rule-note">Footsteps alert Blind Rukmini across adjacent rooms.</div>
+            </div>
+            <div class="sound-rule-card is-danger">
+              <div class="sound-rule-dist tabular-readout">26m</div>
+              <div class="sound-rule-label">Sprinting / Jumping</div>
+              <div class="sound-rule-note">Loud echoes draw Rukmini swiftly from across the Haveli.</div>
+            </div>
+          </div>
+
+          <div class="diary-rules-list">
+            <div class="diary-rule-item"><strong>1. Hide in Silence:</strong> Slip into wooden almirahs or beneath beds (<strong>E</strong>) before Rukmini enters the corridor.</div>
+            <div class="diary-rule-item"><strong>2. Break the Curse:</strong> Gather all 4 cursed relics and burn them at the sacred courtyard fire pit to banish Rukmini.</div>
+            <div class="diary-rule-item"><strong>3. Rescue Your Friends:</strong> Unlock Kabir, Riya, and Dev before making your final escape through the Haveli gate.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1F. LOBBY SIDEBAR MODAL 4: DEMO ACHIEVEMENTS / BADGES -->
+    <div id="lobby-badges-modal" class="modal-backdrop lobby-archive-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="lobby-badges-heading">
+      <div class="lobby-archive-card">
+        <div class="profile-modal-header">
+          <div>
+            <h2 id="lobby-badges-heading" class="profile-modal-title">DEMO ACHIEVEMENTS</h2>
+            <div id="lobby-badges-summary" class="profile-modal-sub">0 / 4 Unlocked · Saved locally on this device</div>
+          </div>
+          <button type="button" class="ig-settings-close-x lobby-modal-close" data-close-lobby-modal="lobby-badges-modal" aria-label="Close Badges">
+            ✕
+          </button>
+        </div>
+        <div class="lobby-archive-body">
+          <div class="badges-grid">
+            <div class="badge-card" data-badge-id="firstEscape">
+              <div class="badge-icon-ring" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+              </div>
+              <div class="badge-info">
+                <div class="badge-name">First Escape</div>
+                <div class="badge-desc">Survive the 1992 curse and escape Thakur Haveli alive.</div>
+              </div>
+              <span class="badge-status">LOCKED</span>
+            </div>
+
+            <div class="badge-card" data-badge-id="rescuedAllFriends">
+              <div class="badge-icon-ring" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </div>
+              <div class="badge-info">
+                <div class="badge-name">Rescued All 3 Friends</div>
+                <div class="badge-desc">Free Kabir, Riya, and Dev before escaping the Haveli.</div>
+              </div>
+              <span class="badge-status">LOCKED</span>
+            </div>
+
+            <div class="badge-card" data-badge-id="burnedAllRelics">
+              <div class="badge-icon-ring" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2c2.5 4 6 6.5 6 11a6 6 0 1 1-12 0c0-4.5 3.5-7 6-11Z" />
+                </svg>
+              </div>
+              <div class="badge-info">
+                <div class="badge-name">Burned All Relics</div>
+                <div class="badge-desc">Destroy all 4 cursed relics to shatter Rukmini's ritual.</div>
+              </div>
+              <span class="badge-status">LOCKED</span>
+            </div>
+
+            <div class="badge-card" data-badge-id="zeroDeathSurvivor">
+              <div class="badge-icon-ring" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                </svg>
+              </div>
+              <div class="badge-info">
+                <div class="badge-name">Zero-Death Survivor</div>
+                <div class="badge-desc">Escape Thakur Haveli with all 3 hearts untouched.</div>
+              </div>
+              <span class="badge-status">LOCKED</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1G. MODE & DIFFICULTY PICKER MODAL -->
+    <div id="lobby-mode-modal" class="modal-backdrop lobby-archive-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="lobby-mode-heading">
+      <div class="lobby-archive-card mode-picker-card">
+        <div class="profile-modal-header">
+          <div>
+            <h2 id="lobby-mode-heading" class="profile-modal-title">MODE &amp; DIFFICULTY</h2>
+            <div class="profile-modal-sub">Thakur Haveli · Configure your horror survival run</div>
+          </div>
+          <button type="button" class="ig-settings-close-x lobby-modal-close" data-close-lobby-modal="lobby-mode-modal" aria-label="Close Mode Picker">
+            ✕
+          </button>
+        </div>
+        <div class="lobby-archive-body mode-picker-body">
+          <!-- Mode Tags -->
+          <div class="mode-section">
+            <div class="diary-section-title">GAME MODE</div>
+            <div class="mode-tag-grid">
+              <div class="mode-tag-card active" aria-current="true">
+                <div class="mode-tag-head">
+                  <span class="mode-tag-name">SOLO DEMO</span>
+                  <span class="mode-tag-badge">ACTIVE</span>
+                </div>
+                <div class="mode-tag-desc">Full 32-room Thakur Haveli &amp; 10-scene story experience</div>
+              </div>
+              <div class="mode-tag-card is-locked" aria-disabled="true">
+                <div class="mode-tag-head">
+                  <span class="mode-tag-name">4-PLAYER CO-OP</span>
+                  <span class="mode-tag-lock">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    COMING SOON
+                  </span>
+                </div>
+                <div class="mode-tag-desc">Online squad survival with Aarav, Kabir, Riya &amp; Dev</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Difficulty Selection -->
+          <div class="mode-section">
+            <div class="diary-section-title">DIFFICULTY</div>
+            <div id="lobby-difficulty-grid" class="difficulty-grid" role="radiogroup" aria-label="Difficulty">
+              <button type="button" class="difficulty-card" data-difficulty-opt="easy">
+                <div class="difficulty-title">EASY</div>
+                <div class="difficulty-desc">Slower Rukmini &amp; brighter flashlight beam</div>
+              </button>
+              <button type="button" class="difficulty-card active" data-difficulty-opt="normal">
+                <div class="difficulty-title">NORMAL</div>
+                <div class="difficulty-desc">Classic Thakur Haveli horror balance</div>
+              </button>
+              <button type="button" class="difficulty-card" data-difficulty-opt="nightmare">
+                <div class="difficulty-title">NIGHTMARE</div>
+                <div class="difficulty-desc">Faster Rukmini &amp; darker cursed atmosphere</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Intro Story Toggle -->
+          <div class="mode-section mode-story-row">
+            <div>
+              <div class="pro-setting-name">Intro Story Sequence</div>
+              <div class="pro-setting-hint">Play the complete 10-scene Visual Novel story before entering the Haveli</div>
+            </div>
+            <div id="lobby-story-toggle-group" class="ig-segmented-group pro-seg-sm" role="group" aria-label="Intro Story Toggle">
+              <button type="button" class="ig-seg-btn active" data-story-opt="on">ON</button>
+              <button type="button" class="ig-seg-btn" data-story-opt="skip">SKIP</button>
+            </div>
+          </div>
+
+          <div class="mode-picker-footer">
+            <button id="lobby-mode-confirm-btn" type="button" class="launch-confirm-btn">
+              CONFIRM SELECTION
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1H. TOP-RIGHT UTILITY MODAL: DEVELOPER MAIL -->
+    <div id="lobby-mail-modal" class="modal-backdrop lobby-archive-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="lobby-mail-heading">
+      <div class="lobby-archive-card">
+        <div class="profile-modal-header">
+          <div>
+            <h2 id="lobby-mail-heading" class="profile-modal-title">DEVELOPER MAIL</h2>
+            <div class="profile-modal-sub">Inbox · Official dispatch from QWG Aryan Studios</div>
+          </div>
+          <button type="button" class="ig-settings-close-x lobby-modal-close" data-close-lobby-modal="lobby-mail-modal" aria-label="Close Developer Mail">
+            ✕
+          </button>
+        </div>
+        <div class="lobby-archive-body">
+          <article class="mail-card">
+            <div class="mail-card-head">
+              <div>
+                <div class="mail-card-subject">Welcome to Thakur Haveli — Demo v1.0.0</div>
+                <div class="mail-card-meta">From: QWG Aryan Studios · Official Launch Letter</div>
+              </div>
+              <span class="mail-card-tag">OFFICIAL</span>
+            </div>
+            <p class="mail-card-body">
+              Thank you for playing <strong>The Rakt Pishachini: Rukmini Ka Shrap</strong>! Wear headphones for spatial 3D payal and whisper cues as you explore all 32 cursed rooms of the 1992 Haveli.
+            </p>
+            <div class="mail-tips-box">
+              <div class="diary-section-title">DEMO v1.0 SURVIVAL TIPS</div>
+              <ul class="mail-tips-list">
+                <li><strong>Stay Silent to Survive:</strong> Blind Rukmini hears walking at 14m and sprinting/jumping at 26m, but 0m if you freeze completely still.</li>
+                <li><strong>Rescue Your Squad:</strong> Free Kabir, Riya, and Dev using the Named Keys before lighting all 4 cursed relics at the Sacred Havan Kund.</li>
+                <li><strong>Use Your Gear Wisely:</strong> Throw a Clay Kulhad (G) to misdirect Rukmini, and reserve Blessed Bhabhut (F) for cornered emergencies.</li>
+                <li><strong>Tune for Your Device:</strong> Open Settings → Display to switch to SMOOTH graphics or adjust Brightness/Gamma live without quitting.</li>
+              </ul>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1I. TOP-RIGHT UTILITY MODAL: NEWS & PATCH NOTES -->
+    <div id="lobby-news-modal" class="modal-backdrop lobby-archive-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="lobby-news-heading">
+      <div class="lobby-archive-card">
+        <div class="profile-modal-header">
+          <div>
+            <h2 id="lobby-news-heading" class="profile-modal-title">NEWS &amp; PATCH NOTES</h2>
+            <div class="profile-modal-sub">QWG Aryan Studios · Announcements &amp; Roadmap</div>
+          </div>
+          <button type="button" class="ig-settings-close-x lobby-modal-close" data-close-lobby-modal="lobby-news-modal" aria-label="Close News">
+            ✕
+          </button>
+        </div>
+        <div class="lobby-archive-body">
+          <article class="news-card">
+            <div class="news-card-head">
+              <h3 class="news-card-title">Demo v1.0 Patch Notes</h3>
+              <span class="news-badge is-live">LIVE NOW</span>
+            </div>
+            <ul class="mail-tips-list">
+              <li>Complete 10-scene Visual Novel intro story with authentic Hindi (hi-IN) character voices.</li>
+              <li>Full 32-room 3D Thakur Haveli with Blind Rukmini acoustic-hunting AI, almirah hiding, Kulhad distractions &amp; Blessed Bhabhut stun.</li>
+              <li>Interactive 3D Horror Lobby with 360° Aarav rotation, Difficulty Picker (Easy / Normal / Nightmare), Badges, and drag-and-drop Custom HUD Editor.</li>
+              <li>Android-ready Smooth / Standard / Ultra presets, live Brightness/Gamma slider, 30/60 FPS cap, and separate Ambience, SFX &amp; Hindi Dialogue volume controls.</li>
+            </ul>
+          </article>
+
+          <article class="news-card is-upcoming">
+            <div class="news-card-head">
+              <h3 class="news-card-title">Upcoming Update: 4-Player Co-Op Multiplayer</h3>
+              <span class="news-badge is-soon">IN DEVELOPMENT</span>
+            </div>
+            <p class="mail-card-body">
+              Team up via <strong>TEAMCODE</strong> as Aarav, Kabir, Riya, and Dev in real-time online co-op survival! Coordinate decoy Kulhad throws, split across wings of Thakur Haveli, revive downed squadmates, and break Rukmini's curse together with spatial voice chat.
+            </p>
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <!-- Global Lightning Flash Overlay for Options Test Jumpscare Preview -->
+    <div
+      id="options-lightning-flash"
+      class="options-lightning-flash hidden"
+      aria-hidden="true"
+    ></div>
+
+    <!-- OPTIONS MODAL -->
+    <div id="options-modal" class="modal hidden">
+      <h2>Game Settings</h2>
+      <label for="gfx-quality">Graphics Quality:</label>
+      <select id="gfx-quality">
+        <option value="ultra">Ultra (Max Shadows &amp; Particles)</option>
+        <option value="high" selected>High (Crisp 3D)</option>
+        <option value="medium">Medium (Balanced)</option>
+        <option value="low">Low (Performance)</option>
+      </select>
+
+      <label for="fps-setting">Target FPS:</label>
+      <select id="fps-setting">
+        <option value="60" selected>60 FPS (Smooth)</option>
+        <option value="30">30 FPS (Battery Saver)</option>
+      </select>
+
+      <label for="audio-vol">
+        Master Audio Volume: <span id="audio-vol-label">100%</span>
+      </label>
+      <input type="range" id="audio-vol" min="0" max="100" value="100" />
+
+      <label for="jumpscare-intensity">
+        Jumpscare Intensity: <span id="jumpscare-intensity-label">80%</span>
+      </label>
+      <div class="jumpscare-control-row">
+        <input
+          type="range"
+          id="jumpscare-intensity"
+          min="0"
+          max="100"
+          value="80"
+        />
+        <button
+          type="button"
+          id="test-jumpscare-btn"
+          class="btn btn-secondary btn-test-jumpscare"
+          title="Trigger a single low-impact lightning flash and sound spike"
+        >
+          ⚡ Test Jumpscare
+        </button>
+      </div>
+      <div class="settings-hint">
+        Dynamically controls lightning flash frequency, strike duration, and jumpscare volume spikes during the 10-scene story.
+      </div>
+
+      <label for="controls-mode-setting">Controls Mode (कंट्रोल मोड):</label>
+      <select id="controls-mode-setting">
+        <option value="auto" selected>Auto (Auto-detect PC / Mobile Touch)</option>
+        <option value="pc">PC (Keyboard + Pointer Lock Mouse)</option>
+        <option value="mobile">Mobile Preview (Joystick + Touch Camera)</option>
+      </select>
+
+      <button
+        type="button"
+        id="options-custom-hud-btn"
+        class="btn btn-secondary modal-custom-hud-btn"
+      >
+        🎛️ Custom HUD Layout (कस्टम HUD लेआउट)
+      </button>
+
+      <button type="button" id="close-options-btn" class="btn modal-save-btn">
+        Close &amp; Save
+      </button>
+    </div>
+
+    <!-- 2. 10-SCENE VISUAL NOVEL HORROR STORY & 3D CINEMATIC INTRO SCREEN -->
+    <div id="story-screen" class="screen hidden">
+      <div class="video-container">
+        <!-- 10-Scene Visual Novel Slow-Zoom Photo Canvas (Active by Default) -->
+        <canvas id="vn-photo-canvas" class="cinematic-video"></canvas>
+
+        <!-- 3D Real-Time Animated Cutscene Canvas (Available via Mode Switch) -->
+        <canvas id="cinematic-3d-canvas" class="cinematic-video hidden"></canvas>
+
+        <video id="intro-video" class="cinematic-video hidden" playsinline>
+          <source
+            src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
+            type="video/mp4"
+          />
+          Your browser does not support HTML video.
+        </video>
+
+        <!-- Lightning / Jumpscare Screen Flash Layer -->
+        <div id="vn-lightning-flash" class="vn-lightning-flash hidden"></div>
+
+        <!-- Subtle film grain & cold vignette overlay -->
+        <div class="film-grain-overlay" aria-hidden="true"></div>
+
+        <!-- Realistic Weathered Vintage Cast-Iron Haveli Plaque (1884 Scene Only) -->
+        <div id="vn-haveli-plaque" class="vn-haveli-plaque hidden" aria-hidden="true">
+          <div class="plaque-chains">
+            <span class="plaque-chain-leg"></span>
+            <span class="plaque-chain-leg"></span>
+          </div>
+          <div class="plaque-iron-plate">
+            <span class="plaque-rivet tl"></span>
+            <span class="plaque-rivet tr"></span>
+            <span class="plaque-rivet bl"></span>
+            <span class="plaque-rivet br"></span>
+            <div class="plaque-inner-bevel">
+              <div class="plaque-kicker">THAKUR ESTATE · ESTD.</div>
+              <div class="plaque-title">ठाकुर अमरेंद्र सिंह हवेली</div>
+              <div class="plaque-divider"><span>✦</span></div>
+              <div class="plaque-year">निर्माण 1884</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hidden Legacy Story Subtitle/HUD Elements (Kept Hidden for Clean Story Screen) -->
+        <div id="vn-top-bar" class="vn-top-hud-bar hidden" aria-hidden="true">
+          <div class="vn-top-hud-row">
+            <div class="vn-top-meta">
+              <span id="vn-shot-badge" class="vn-shot-badge"></span>
+              <span id="vn-photo-caption" class="vn-speaker-pill"></span>
+              <span id="vn-sound-indicator" class="vn-sfx-pill"></span>
+            </div>
+            <div class="vn-top-right-btns">
+              <button id="pace-toggle-btn" type="button" class="vn-chip-btn"></button>
+              <button id="trigger-jumpscare-btn" type="button" class="vn-chip-btn vn-chip-danger"></button>
+            </div>
+          </div>
+          <div id="vn-scene-dots" class="vn-chapter-pills-row"></div>
+          <div id="vn-beat-dots" class="vn-beat-dots-row"></div>
+        </div>
+
+        <div id="vn-text-stage" class="vn-text-stage hidden" aria-hidden="true"></div>
+
+        <div id="vn-progress-container" class="vn-progress-container hidden" aria-hidden="true">
+          <div class="vn-progress-track">
+            <div id="vn-progress-bar" class="vn-progress-bar" style="width: 0%;"></div>
+          </div>
+          <div class="vn-progress-info">
+            <span id="vn-scene-badge" class="vn-progress-scene-title"></span>
+            <div id="vn-controls-bar" class="vn-playback-sfx-row hidden">
+              <button id="vn-prev-btn" type="button" class="vn-ctrl-btn"></button>
+              <button id="vn-prev-beat-btn" type="button" class="vn-ctrl-btn"></button>
+              <button id="vn-autoplay-btn" type="button" class="vn-ctrl-btn vn-ctrl-primary"></button>
+              <button id="vn-next-beat-btn" type="button" class="vn-ctrl-btn vn-ctrl-amber"></button>
+              <button id="vn-next-btn" type="button" class="vn-ctrl-btn"></button>
+              <button id="sfx-payal-btn" type="button" class="vn-ctrl-btn vn-ctrl-sfx"></button>
+              <button id="sfx-thunder-btn" type="button" class="vn-ctrl-btn vn-ctrl-sfx"></button>
+              <button id="sfx-gate-btn" type="button" class="vn-ctrl-btn vn-ctrl-sfx"></button>
+              <input type="file" id="vn-custom-photo-input" class="hidden" />
+              <button id="toggle-3d-intro-btn" type="button" class="hidden"></button>
+            </div>
+            <div class="vn-story-actions">
+              <span id="vn-pause-hint" class="vn-pause-hint"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scene 10 Final Blackout Screen: "खेल शुरू होता है।" + [ START GAME ] -->
+        <div id="vn-blackout-final" class="intro-ending-overlay hidden">
+          <div class="glitch-title-wrapper">
+            <p class="vn-final-hindi-line">खेल शुरू होता है।</p>
+            <h1
+              class="glitch-title"
+              data-text="THE RAKT PISHACHINI: RUKMINI KA SHRAP"
+            >
+              THE RAKT PISHACHINI: RUKMINI KA SHRAP
+            </h1>
+            <p class="glitch-subtitle">
+              1992 ठाकुर हवेली · चारों शापित चीज़ें कुएँ में भस्म करो
+            </p>
+          </div>
+
+          <button id="vn-start-game-btn" class="press-start-btn">
+            [ START GAME ]
+          </button>
+
+          <div class="intro-ending-subactions">
+            <button id="vn-open-lobby-btn" class="intro-sub-btn">
+              Co-Op Squad &amp; Room Setup
+            </button>
+            <button id="vn-replay-story-btn" class="intro-sub-btn">
+              ↻ 10-सीन स्टोरी फिर से देखें
+            </button>
+          </div>
+        </div>
+
+        <!-- Cut-to-black Ending Overlay for 3D Intro Mode -->
+        <div id="intro-ending-overlay" class="intro-ending-overlay hidden">
+          <div class="glitch-title-wrapper">
+            <h1
+              class="glitch-title"
+              data-text="THE RAKT PISHACHINI: RUKMINI KA SHRAP"
+            >
+              THE RAKT PISHACHINI: RUKMINI KA SHRAP
+            </h1>
+            <p class="glitch-subtitle">
+              चंदनपुर का शापित अंधेरा · 1992 THAKUR HAVELI
+            </p>
+          </div>
+
+          <button id="press-start-btn" class="press-start-btn">
+            PRESS START
+          </button>
+
+          <div class="intro-ending-subactions">
+            <button id="open-lobby-btn" class="intro-sub-btn">
+              Co-Op Squad &amp; Room Setup
+            </button>
+            <button id="replay-intro-btn" class="intro-sub-btn">
+              ↻ Replay Animated Intro
+            </button>
+          </div>
+        </div>
+
+        <div id="scene-selector-overlay" class="scene-selector-overlay hidden">
+          <button
+            id="cutscene-btn-1"
+            class="scene-chip active"
+            title="सीन 1: हवेली के बाहर बारिश और कार का रुकना (Cinematic Intro)"
+          >
+            1. हवेली और कार (Intro)
+          </button>
+          <button
+            id="cutscene-btn-2"
+            class="scene-chip"
+            title="सीन 2: रुक्मिणी (रक्त-पिशाचिनी) का खौफनाक लुक (Jumpscare Animation)"
+          >
+            2. रक्त-पिशाचिनी (Jumpscare)
+          </button>
+          <button
+            id="cutscene-btn-3"
+            class="scene-chip"
+            title="सीन 3: सूखे कुएं का रहस्य और जलती हुई चिता (Climax Scene)"
+          >
+            3. सूखा कुआं (Climax)
+          </button>
+          <button
+            id="cutscene-ai-video-btn"
+            class="scene-chip scene-chip-ai"
+            title="Generate AI Video for current scene via gemini-omni-1.2-flash"
+          >
+            🎬 Generate AI Video
+          </button>
+          <button
+            id="back-to-vn-btn"
+            class="scene-chip"
+          >
+            📖 10-सीन विज़ुअल नॉवेल पर लौटें
+          </button>
+        </div>
+
+        <!-- Corner Pause & Skip Story Controls at Bottom Right -->
+        <div id="skip-overlay" class="skip-overlay" style="display: flex; gap: 8px; align-items: center;">
+          <button id="story-pause-btn" type="button" class="skip-btn" title="कहानी रोकें (ESC)">
+            ⏸️ Pause (ESC)
+          </button>
+          <button id="skip-story-btn" type="button" class="skip-btn" title="कहानी स्किप करें और खेल शुरू करें">
+            Skip Story ⏭️
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. SINGLE PLAYER STORY MODE IN-GAME HUD -->
+    <div id="hud" class="hidden">
+      <!-- 100% Pitch-Black Blackout Overlay for Step 4 Abduction Sequence -->
+      <div id="entry-blackout-overlay" class="entry-blackout-overlay hidden" aria-hidden="true"></div>
+      <!-- Brief 2-Second Dark Warning Banner when Rukmini throws the player into the Well Courtyard (lives > 0) -->
+      <div id="respawn-warning-overlay" class="respawn-warning-overlay hidden" role="alert" aria-live="assertive">
+        <div id="respawn-warning-text" class="respawn-warning-text"></div>
+      </div>
+      <!-- Red Lightning Flash Overlay triggered whenever a cursed relic is burned in the well -->
+      <div id="hud-red-lightning-flash" class="hud-red-lightning-flash hidden" aria-hidden="true"></div>
+      <!-- Subtle Screen Fade Overlay triggered when moving between Haveli floors (-1 / G / 2F / 3F) -->
+      <div id="floor-change-fade" class="floor-change-fade" aria-hidden="true"></div>
+      <!-- Subtle Cinematic Letterbox Bars for Watchman Baba's 6-second Mini Camera Cutscene -->
+      <div id="cutscene-letterbox-top" class="cutscene-letterbox top hidden" aria-hidden="true"></div>
+      <div id="cutscene-letterbox-bottom" class="cutscene-letterbox bottom hidden" aria-hidden="true"></div>
+      <!-- Dramatic Hindi Voice Subtitle Overlay for Guard, Friends, Rukmini & Blackout Screams -->
+      <div id="entry-subtitle-bar" class="entry-subtitle-bar hidden" role="status" aria-live="polite">
+        <div id="entry-subtitle-speaker" class="entry-subtitle-speaker"></div>
+        <div id="entry-subtitle-text" class="entry-subtitle-text"></div>
+      </div>
+      <!-- Subtle Top-Center PC Pointer Lock Prompt (auto-hides when locked or on Mobile Touch) -->
+      <div
+        id="pc-pointer-lock-prompt"
+        class="pc-pointer-lock-prompt hidden"
+        role="status"
+        aria-live="polite"
+      >
+        Click screen to lock mouse (ESC to unlock)
+      </div>
+      <!-- Screen-edge Heartbeat Vignette Pulse Overlay (intensifies when Rukmini is within 5m) -->
+      <div id="heartbeat-vignette" class="heartbeat-vignette" aria-hidden="true"></div>
+      <div class="hud-top">
+        <!-- Top-Left: Free Fire-Style Compact Square Minimap + Sleek Lives & Relics Strip Directly Below -->
+        <div class="hud-top-left" id="hud-ctrl-minimap" data-hud-control="minimap">
+          <button
+            id="hud-map-icon-btn"
+            type="button"
+            class="hud-radar-btn"
+            title="Haveli Minimap (Tap or M for Full Map)"
+            aria-label="Toggle Fullscreen Haveli Map (M)"
+          >
+            <canvas
+              id="hud-radar-canvas"
+              class="hud-radar-canvas"
+              width="168"
+              height="168"
+              aria-hidden="true"
+            ></canvas>
+            <span id="hud-radar-floor-tag" class="hud-radar-floor-tag">G</span>
+            <span class="hud-map-key-badge">M</span>
+          </button>
+
+          <div class="hud-status-strip" aria-label="Lives and Relics Status">
+            <!-- 3-Lives Minimal Crimson Hearts -->
+            <div id="hud-lives-badge" class="hud-strip-item lives-stat" title="Lives Remaining" aria-label="Lives Remaining">
+              <svg class="hud-heart" data-heart-index="0" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+              <svg class="hud-heart" data-heart-index="1" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+              <svg class="hud-heart" data-heart-index="2" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+            </div>
+
+            <span class="hud-strip-sep" aria-hidden="true">·</span>
+
+            <!-- Relic Counter (Icon + 0/4) -->
+            <div class="hud-strip-item relic-stat" id="relic-tracker" title="Cursed Relics">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="9.5" cy="12" r="5.5" />
+                <circle cx="14.5" cy="12" r="5.5" stroke-dasharray="20 6" />
+              </svg>
+              <span id="relic-count-text" class="tabular-readout">0/4</span>
+            </div>
+
+            <span class="hud-strip-sep" aria-hidden="true">·</span>
+
+            <!-- Quiet Noise Output Counter -->
+            <div id="hud-noise-badge" class="hud-strip-item noise-stat" title="Noise Level">
+              <span id="hud-noise-value" class="tabular-readout">0 dB</span>
+            </div>
+
+            <!-- Cursed Well Burn Counter (Shown after first relic burn) -->
+            <div id="hud-rage-badge" class="hud-strip-item rage-stat hidden" title="Relics Burned in Well">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 2c.5 3.5-3 5.5-3 9.5a5 5 0 0 0 10 0c0-3.5-2.5-5.5-3.5-7.5-.5 2-2 2.5-2.5 2-.5-.5 0-2.5-1-4Z" />
+              </svg>
+              <span id="hud-rage-value" class="tabular-readout">0/4</span>
+            </div>
+          </div>
+
+          <!-- Hidden compatibility inventory strip (live items now shown cleanly inside Backpack drawer) -->
+          <div
+            id="hud-inventory-strip"
+            class="hud-inventory-strip hidden"
+            aria-hidden="true"
+          ></div>
+        </div>
+
+        <!-- Top-Right: Optional FPS Counter + Clean Settings Gear Icon (Opens In-Game Tabbed Settings) -->
+        <div class="hud-top-right">
+          <div id="hud-fps-counter" class="hud-fps-counter hidden tabular-readout" aria-live="off">
+            60 FPS
+          </div>
+          <button
+            id="hud-exit-btn"
+            type="button"
+            class="hud-settings-gear-btn"
+            title="Settings / Pause (ESC)"
+            aria-label="Open In-Game Settings (ESC)"
+          >
+            <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3.2" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Fullscreen Detailed 3D Haveli Map Overlay (Hidden by default; Toggle with 'M' or corner Map Icon) -->
+      <div
+        id="hud-minimap-container"
+        class="hud-minimap-container hidden"
+        role="dialog"
+        aria-label="Haveli 3D Floor Map"
+      >
+        <div class="hud-minimap-header">
+          <div class="hud-minimap-header-left">
+            <span id="hud-minimap-title" class="hud-minimap-title">भूतल (G)</span>
+            <span id="hud-minimap-room" class="hud-minimap-room">शाही दरबार हॉल</span>
+          </div>
+          <button
+            id="hud-minimap-toggle-btn"
+            type="button"
+            class="hud-minimap-toggle-btn"
+            title="Close Map (M)"
+            aria-label="Close Fullscreen Map (M)"
+          >
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+            <span>M</span>
+          </button>
+        </div>
+        <canvas id="hud-minimap-canvas" class="hud-minimap-canvas"></canvas>
+        <div class="hud-minimap-footer">
+          <div class="hud-minimap-legend">
+            <span class="mm-leg mm-player">▲ आप</span>
+            <span class="mm-leg mm-stairs">■ सीढ़ियाँ</span>
+            <span class="mm-leg mm-well">● कुआँ</span>
+            <span class="mm-leg mm-hide">■ छुपना</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subtle Peek-Slit Overlay when hidden inside a Haveli Hiding Spot (Palki curtains, Jaali lattice, or wooden slats) -->
+      <div id="hide-peek-overlay" class="hide-peek-overlay hidden" aria-hidden="true">
+        <div class="peek-top-slat"></div>
+        <div class="peek-left-curtain"></div>
+        <div class="peek-right-curtain"></div>
+        <div class="peek-jaali-lattice"></div>
+        <div class="peek-bottom-slat"></div>
+        <div id="hide-stealth-pill" class="hide-stealth-pill">
+          🔇 0 dB · HIDDEN INSIDE — Rotate Mouse Left/Right to Peek Outside
+        </div>
+      </div>
+
+      <!-- Interactive Hiding Prompt Banner when within 2.2m of any hiding spot or while hidden -->
+      <div id="hide-prompt-banner" class="hide-prompt-banner hidden" role="status">
+        <span id="hide-prompt-text">Press E to Hide Inside</span>
+      </div>
+
+      <!-- Clean Item & Key Pickup Toast Notification (Auto-fades after 3.5s) -->
+      <div id="hud-item-toast" class="hud-item-toast hidden" role="status" aria-live="polite">
+        <div id="hud-item-toast-title" class="hud-item-toast-title"></div>
+        <div id="hud-item-toast-subtitle" class="hud-item-toast-subtitle"></div>
+      </div>
+
+      <!-- Exact Centre of Screen: Crosshair (Dot or Classic 4-Tick Mode) -->
+      <div
+        id="center-crosshair"
+        class="center-crosshair"
+        role="button"
+        tabindex="0"
+        aria-label="Rescue friend or interact"
+      >
+        <div id="crosshair-dot" class="crosshair-dot">
+          <span class="crosshair-arm arm-top" aria-hidden="true"></span>
+          <span class="crosshair-arm arm-right" aria-hidden="true"></span>
+          <span class="crosshair-arm arm-bottom" aria-hidden="true"></span>
+          <span class="crosshair-arm arm-left" aria-hidden="true"></span>
+        </div>
+        <div id="crosshair-hint" class="crosshair-hint hidden">✋</div>
+      </div>
+
+      <!-- Bottom-Left Zone: 1-Tap Auto-Sprint (above), Virtual Joystick, & Backpack Icon (beside) -->
+      <div
+        class="hud-autosprint-slot"
+        id="hud-ctrl-autosprint"
+        data-hud-control="autosprint"
+      >
+        <button
+          id="autosprint-action-btn"
+          type="button"
+          class="hud-circle-btn autosprint-circle-btn"
+          title="1-Tap Auto-Sprint (तेज़ दौड़)"
+          aria-label="Toggle Auto-Sprint"
+          aria-pressed="false"
+        >
+          <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="14.5" cy="4.5" r="2" />
+            <path d="M11 8.5l2.5 1.8 3.2-1.3" />
+            <path d="M12.5 10.3l-2.3 4.2 3.8 2-1.2 4" />
+            <path d="M10.2 14.5l-3.4 2.5-1.8-.8" />
+            <path d="M4 10h3.5" opacity="0.65" />
+            <path d="M3 13h3" opacity="0.45" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="controls-overlay" id="hud-ctrl-joystick" data-hud-control="joystick">
+        <div class="joystick-base" id="joystick">
+          <div class="joystick-sprint-cue" id="joystick-sprint-cue" aria-hidden="true">▲ SPRINT</div>
+          <div class="joystick-knob" id="joystick-knob"></div>
+        </div>
+      </div>
+
+      <div
+        class="hud-backpack-slot"
+        id="hud-ctrl-backpack"
+        data-hud-control="backpack"
+      >
+        <button
+          id="backpack-action-btn"
+          type="button"
+          class="hud-circle-btn backpack-circle-btn"
+          title="Backpack — Keys & Relics (बैकपैक)"
+          aria-label="Open Backpack Inventory"
+          aria-expanded="false"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M8 7V5a4 4 0 0 1 8 0v2" />
+            <path d="M5 9a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V9z" />
+            <path d="M8 13h8" />
+            <path d="M10 13v3" />
+            <path d="M14 13v3" />
+          </svg>
+          <span id="backpack-count-pip" class="hud-btn-count hidden">0</span>
+        </button>
+      </div>
+
+      <!-- Compact Backpack Inventory Drawer (Named Keys & Cursed Relics) -->
+      <div
+        id="hud-backpack-drawer"
+        class="hud-backpack-drawer hidden"
+        role="region"
+        aria-label="Collected Keys and Relics"
+      >
+        <div class="hud-backpack-header">
+          <span>🎒 Backpack · चाबियाँ व अवशेष</span>
+          <button
+            type="button"
+            id="hud-backpack-close-btn"
+            class="hud-backpack-close-btn"
+            aria-label="Close Backpack"
+          >
+            ✕
+          </button>
+        </div>
+        <div id="hud-backpack-list" class="hud-backpack-list"></div>
+      </div>
+
+      <!-- Bottom-Right Free Fire-Inspired Horror Thumb Arc (Dark Glass Circles + Crisp White SVGs Only) -->
+      <div class="hud-right-controls hud-ff-arc" aria-label="Action Controls">
+        <!-- Compatibility hidden Hide slot (Primary Interact E button now handles Hide/Exit too) -->
+        <div class="hud-circle-slot hidden" id="hide-action-slot">
+          <button
+            id="hide-action-btn"
+            type="button"
+            class="hud-circle-btn hide-circle-btn"
+            title="Hide / Exit Hiding Spot (E)"
+            aria-label="Hide or Exit Hiding Spot (E)"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+              <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+              <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+              <line x1="2" y1="2" x2="22" y2="22" />
+            </svg>
+          </button>
+          <span class="hud-key-cap">E</span>
+        </div>
+
+        <!-- Smaller Inner Arc: Use Bhabhut (F) -->
+        <div class="hud-circle-slot ff-arc-bhabhut hidden" id="bhabhut-action-slot" data-hud-control="bhabhut">
+          <button
+            id="bhabhut-action-btn"
+            type="button"
+            class="hud-circle-btn hud-circle-sm bhabhut-circle-btn"
+            title="Use Blessed Bhabhut (F)"
+            aria-label="Use Blessed Bhabhut (F)"
+          >
+            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
+              <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z" />
+            </svg>
+          </button>
+          <span class="hud-key-cap">F</span>
+        </div>
+
+        <!-- Smaller Inner Arc: Throw Kulhad (G) -->
+        <div class="hud-circle-slot ff-arc-kulhad hidden" id="throw-action-slot" data-hud-control="kulhad">
+          <button
+            id="throw-action-btn"
+            type="button"
+            class="hud-circle-btn hud-circle-sm throw-circle-btn"
+            title="Throw Kulhad / Stone (G)"
+            aria-label="Throw Kulhad (G)"
+          >
+            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 17c2-7 8-11 14-11" />
+              <polyline points="15 3 19 6 15 9" />
+              <circle cx="6.5" cy="17.5" r="2.5" fill="currentColor" />
+            </svg>
+            <span id="throw-count-pip" class="hud-btn-count hidden">0</span>
+          </button>
+          <span class="hud-key-cap">G</span>
+        </div>
+
+        <!-- Primary Large Interact / Grab / Open / Hide (E) Button with Golden-Crimson Ring -->
+        <div class="hud-circle-slot ff-arc-interact" id="rescue-action-slot" data-hud-control="interact">
+          <button
+            id="rescue-action-btn"
+            type="button"
+            class="hud-circle-btn hud-circle-primary interact-circle-btn"
+            title="Interact / Grab / Open / Hide (E)"
+            aria-label="Interact, Grab, Open, or Hide (E)"
+          >
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
+              <path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" />
+              <path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" />
+              <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+            </svg>
+          </button>
+          <span class="hud-key-cap">E</span>
+        </div>
+
+        <!-- Upper-Right Curve: Jump (SPACE) -->
+        <div class="hud-circle-slot ff-arc-jump" id="jump-action-slot" data-hud-control="jump">
+          <button
+            id="jump-action-btn"
+            type="button"
+            class="hud-circle-btn jump-circle-btn"
+            title="Jump (SPACE)"
+            aria-label="Jump (SPACE)"
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 19V5" />
+              <path d="M5 12l7-7 7 7" />
+              <path d="M7 21h10" stroke-width="1.8" opacity="0.65" />
+            </svg>
+          </button>
+          <span class="hud-key-cap">SPACE</span>
+        </div>
+
+        <!-- Lower-Right Curve: Crouch (C) -->
+        <div class="hud-circle-slot ff-arc-crouch" id="crouch-action-slot" data-hud-control="crouch">
+          <button
+            id="crouch-action-btn"
+            type="button"
+            class="hud-circle-btn crouch-circle-btn"
+            title="Crouch (C)"
+            aria-label="Toggle Crouch (C)"
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="14.5" cy="6.5" r="2.3" />
+              <path d="M12.5 10.5l-3 2.8 3.8 2.2-1.8 4" />
+              <path d="M12.5 10.5l3.5 1.8 2-1.5" />
+              <path d="M9.5 13.3l-2.8 4.7H4.5" />
+            </svg>
+          </button>
+          <span class="hud-key-cap">C</span>
+        </div>
+      </div>
+
+      <!-- Hidden auxiliary buttons for compatibility -->
+      <div class="side-icon-column hidden" id="controls-dock">
+        <button class="side-round-btn" id="mic-btn" type="button"></button>
+        <button class="side-round-btn" id="whisper-btn" type="button"></button>
+        <button class="side-round-btn" id="chat-btn" type="button"></button>
+        <button class="side-round-btn" id="sanctum-btn" type="button"></button>
+        <button class="side-round-btn" id="mute-btn" type="button"></button>
+      </div>
+    </div>
+
+    <!-- 3B. LEFT-SIDEBAR 4-TAB PRO SETTINGS MENU (Accessible from Both Main Lobby & Gameplay Without Quitting) -->
+    <div id="pause-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-label="Game Settings">
+      <div class="ig-settings-card pro-settings-card">
+        <div class="ig-settings-header">
+          <div>
+            <h2 id="pause-modal-title" class="ig-settings-title">SETTINGS</h2>
+            <p id="pause-modal-subtitle" class="ig-settings-subtitle">
+              Changes apply live immediately without leaving your session.
+            </p>
+          </div>
+          <button
+            type="button"
+            id="ig-settings-close-x"
+            class="ig-settings-close-x"
+            aria-label="Close Settings"
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- Left-Sidebar 4-Tab Layout (Visible in Lobby & Gameplay; hidden during Story Pause) -->
+        <div id="ig-settings-tabs-container" class="pro-settings-body">
+          <nav class="pro-settings-sidebar" role="tablist" aria-label="Settings Categories">
+            <button
+              type="button"
+              class="pro-side-tab active"
+              data-pro-tab="inmatch"
+              role="tab"
+              aria-selected="true"
+            >
+              IN-MATCH
+            </button>
+            <button
+              type="button"
+              class="pro-side-tab"
+              data-pro-tab="display"
+              role="tab"
+              aria-selected="false"
+            >
+              DISPLAY
+            </button>
+            <button
+              type="button"
+              class="pro-side-tab"
+              data-pro-tab="sound"
+              role="tab"
+              aria-selected="false"
+            >
+              SOUND
+            </button>
+            <button
+              type="button"
+              class="pro-side-tab"
+              data-pro-tab="account"
+              role="tab"
+              aria-selected="false"
+            >
+              ACCOUNT &amp; BASIC
+            </button>
+          </nav>
+
+          <div class="pro-settings-content">
+            <!-- TAB 1: IN-MATCH (3 Sub-Tabs: HUD | CONTROLS | SENSITIVITY) -->
+            <div id="pro-panel-inmatch" class="pro-tab-panel" role="tabpanel">
+              <div class="pro-subtabs-bar" role="tablist" aria-label="In-Match Sub-Tabs">
+                <button type="button" class="pro-subtab-btn active" data-inmatch-subtab="hud" role="tab" aria-selected="true">
+                  HUD
+                </button>
+                <button type="button" class="pro-subtab-btn" data-inmatch-subtab="controls" role="tab" aria-selected="false">
+                  CONTROLS
+                </button>
+                <button type="button" class="pro-subtab-btn" data-inmatch-subtab="sensitivity" role="tab" aria-selected="false">
+                  SENSITIVITY
+                </button>
+              </div>
+
+              <!-- Sub-Tab 1A: HUD (HUD 1 & HUD 2 Preview Cards + Bold CUSTOM Button) -->
+              <div id="pro-subpanel-hud" class="pro-subpanel">
+                <div class="hud-presets-grid">
+                  <button type="button" class="hud-preset-card active" data-hud-preset-card="1">
+                    <div class="hud-preset-card-head">
+                      <span class="hud-preset-title">HUD 1</span>
+                      <span class="hud-preset-state">ACTIVE</span>
+                    </div>
+                    <div class="hud-mini-preview" aria-hidden="true">
+                      <span class="hmp-map"></span>
+                      <span class="hmp-gear"></span>
+                      <span class="hmp-joy"></span>
+                      <span class="hmp-sprint"></span>
+                      <span class="hmp-bag"></span>
+                      <span class="hmp-act-main"></span>
+                      <span class="hmp-act-1"></span>
+                      <span class="hmp-act-2"></span>
+                    </div>
+                    <div class="hud-preset-desc">Classic Horror Arc · Standard Thumb Reach</div>
+                  </button>
+
+                  <button type="button" class="hud-preset-card" data-hud-preset-card="2">
+                    <div class="hud-preset-card-head">
+                      <span class="hud-preset-title">HUD 2</span>
+                      <span class="hud-preset-state">SELECT</span>
+                    </div>
+                    <div class="hud-mini-preview is-compact" aria-hidden="true">
+                      <span class="hmp-map"></span>
+                      <span class="hmp-gear"></span>
+                      <span class="hmp-joy"></span>
+                      <span class="hmp-sprint"></span>
+                      <span class="hmp-bag"></span>
+                      <span class="hmp-act-main"></span>
+                      <span class="hmp-act-1"></span>
+                      <span class="hmp-act-2"></span>
+                    </div>
+                    <div class="hud-preset-desc">Compact Claw Layout · High-Visibility Center</div>
+                  </button>
+                </div>
+
+                <button
+                  id="pause-custom-hud-btn"
+                  type="button"
+                  class="pro-custom-hud-cta"
+                >
+                  CUSTOM
+                </button>
+              </div>
+
+              <!-- Sub-Tab 1B: CONTROLS -->
+              <div id="pro-subpanel-controls" class="pro-subpanel hidden">
+                <div class="pro-setting-row">
+                  <div class="pro-setting-info">
+                    <div class="pro-setting-name">Controls Mode</div>
+                    <div class="pro-setting-hint">PC keyboard &amp; mouse stay active automatically</div>
+                  </div>
+                  <div class="ig-segmented-group pro-seg" id="ig-controls-mode-group" role="group" aria-label="Controls Mode">
+                    <button type="button" class="ig-seg-btn active" data-ctrl-mode="auto">Auto</button>
+                    <button type="button" class="ig-seg-btn" data-ctrl-mode="mobile">Mobile Touch</button>
+                    <button type="button" class="ig-seg-btn" data-ctrl-mode="pc">PC</button>
+                  </div>
+                </div>
+
+                <div class="pro-setting-row">
+                  <div class="pro-setting-info">
+                    <div class="pro-setting-name">Auto-Sprint Button</div>
+                    <div class="pro-setting-hint">Show 1-tap fast run toggle above virtual joystick</div>
+                  </div>
+                  <div class="ig-segmented-group pro-seg-sm" id="pro-autosprint-group" role="group" aria-label="Auto-Sprint Button">
+                    <button type="button" class="ig-seg-btn" data-autosprint-opt="off">Off</button>
+                    <button type="button" class="ig-seg-btn active" data-autosprint-opt="on">On</button>
+                  </div>
+                </div>
+
+                <div class="pro-setting-row">
+                  <div class="pro-setting-info">
+                    <div class="pro-setting-name">Crosshair Type</div>
+                    <div class="pro-setting-hint">Center reticle style while exploring the Haveli</div>
+                  </div>
+                  <div class="ig-segmented-group pro-seg-sm" id="pro-crosshair-group" role="group" aria-label="Crosshair Type">
+                    <button type="button" class="ig-seg-btn active" data-crosshair-opt="dot">Dot</button>
+                    <button type="button" class="ig-seg-btn" data-crosshair-opt="classic">Classic</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sub-Tab 1C: SENSITIVITY (10 - 200 with - / + step buttons) -->
+              <div id="pro-subpanel-sensitivity" class="pro-subpanel hidden">
+                <div class="pro-slider-card">
+                  <div class="pro-slider-head">
+                    <label class="pro-setting-name" for="ig-sens-slider">Camera Rotation Sensitivity</label>
+                    <span id="ig-sens-value" class="pro-slider-val tabular-readout">100</span>
+                  </div>
+                  <div class="pro-stepper-row">
+                    <button type="button" id="pro-sens-minus" class="pro-step-btn" aria-label="Decrease Sensitivity">−</button>
+                    <input
+                      type="range"
+                      id="ig-sens-slider"
+                      class="ig-range-slider"
+                      min="10"
+                      max="200"
+                      step="1"
+                      value="100"
+                    />
+                    <button type="button" id="pro-sens-plus" class="pro-step-btn" aria-label="Increase Sensitivity">+</button>
+                  </div>
+                  <div class="pro-slider-scale">
+                    <span>10 (Slow)</span>
+                    <span>100 (Default)</span>
+                    <span>200 (Fast)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 2: DISPLAY -->
+            <div id="pro-panel-display" class="pro-tab-panel hidden" role="tabpanel">
+              <div class="pro-setting-row">
+                <div class="pro-setting-info">
+                  <div class="pro-setting-name">Graphics Quality</div>
+                  <div class="pro-setting-hint">Smooth disables heavy shadows, caps 1.0x pixel ratio &amp; trims rain for Android</div>
+                </div>
+                <div class="ig-segmented-group pro-seg" id="ig-gfx-preset-group" role="group" aria-label="Graphics Quality">
+                  <button type="button" class="ig-seg-btn" data-gfx-preset="low">Smooth</button>
+                  <button type="button" class="ig-seg-btn" data-gfx-preset="medium">Standard</button>
+                  <button type="button" class="ig-seg-btn active" data-gfx-preset="high">Ultra</button>
+                </div>
+              </div>
+
+              <div class="pro-slider-card">
+                <div class="pro-slider-head">
+                  <label class="pro-setting-name" for="pro-brightness-slider">Brightness / Gamma</label>
+                  <span id="pro-brightness-value" class="pro-slider-val tabular-readout">100%</span>
+                </div>
+                <input
+                  type="range"
+                  id="pro-brightness-slider"
+                  class="ig-range-slider"
+                  min="80"
+                  max="150"
+                  step="1"
+                  value="100"
+                />
+                <div class="pro-slider-scale">
+                  <span>80% (Darker)</span>
+                  <span>100% (Default)</span>
+                  <span>150% (Brighter)</span>
+                </div>
+              </div>
+
+              <div class="pro-setting-row">
+                <div class="pro-setting-info">
+                  <div class="pro-setting-name">FPS Cap</div>
+                  <div class="pro-setting-hint">30 FPS for battery saving or 60 FPS for fluid motion</div>
+                </div>
+                <div class="ig-segmented-group pro-seg-sm" id="pro-highfps-group" role="group" aria-label="FPS Cap">
+                  <button type="button" class="ig-seg-btn" data-highfps-opt="normal">30 FPS</button>
+                  <button type="button" class="ig-seg-btn active" data-highfps-opt="high">60 FPS</button>
+                </div>
+              </div>
+
+              <div class="pro-setting-row">
+                <div class="pro-setting-info">
+                  <div class="pro-setting-name">Shadows</div>
+                  <div class="pro-setting-hint">Dynamic real-time torch &amp; lantern shadows</div>
+                </div>
+                <div class="ig-segmented-group pro-seg-sm" id="pro-shadows-group" role="group" aria-label="Shadows">
+                  <button type="button" class="ig-seg-btn" data-shadows-opt="off">Off</button>
+                  <button type="button" class="ig-seg-btn active" data-shadows-opt="on">On</button>
+                </div>
+              </div>
+
+              <div class="pro-setting-row">
+                <div class="pro-setting-info">
+                  <div class="pro-setting-name">Minimap</div>
+                  <div class="pro-setting-hint">Top-left compact radar orientation</div>
+                </div>
+                <div class="ig-segmented-group pro-seg-sm" id="pro-minimap-group" role="group" aria-label="Minimap Orientation">
+                  <button type="button" class="ig-seg-btn active" data-minimap-opt="north_up">North Up</button>
+                  <button type="button" class="ig-seg-btn" data-minimap-opt="rotating">Rotating</button>
+                </div>
+              </div>
+
+              <div class="pro-setting-row">
+                <div class="pro-setting-info">
+                  <div class="pro-setting-name">Notch Screen</div>
+                  <div class="pro-setting-hint">Safe-area padding for punch-hole cameras &amp; cutouts</div>
+                </div>
+                <div class="ig-segmented-group pro-seg-sm" id="pro-notch-group" role="group" aria-label="Notch Screen">
+                  <button type="button" class="ig-seg-btn" data-notch-opt="off">Off</button>
+                  <button type="button" class="ig-seg-btn active" data-notch-opt="on">On</button>
+                </div>
+              </div>
+
+              <div class="pro-setting-row">
+                <div class="pro-setting-info">
+                  <div class="pro-setting-name">Show In-Game FPS Counter</div>
+                  <div class="pro-setting-hint">Display live FPS beside top-right settings icon during gameplay</div>
+                </div>
+                <label class="ig-switch" for="ig-fps-toggle">
+                  <input type="checkbox" id="ig-fps-toggle" />
+                  <span class="ig-switch-track"></span>
+                </label>
+              </div>
+            </div>
+
+            <!-- TAB 3: SOUND -->
+            <div id="pro-panel-sound" class="pro-tab-panel hidden" role="tabpanel">
+              <div class="pro-setting-row">
+                <div class="pro-setting-info">
+                  <div class="pro-setting-name">Mute All</div>
+                  <div class="pro-setting-hint">Instantly silence all audio, ambience, SFX &amp; voice dialogue</div>
+                </div>
+                <div class="ig-segmented-group pro-seg-sm" id="pro-mute-all-group" role="group" aria-label="Mute All">
+                  <button type="button" class="ig-seg-btn active" data-muteall-opt="off">Off</button>
+                  <button type="button" class="ig-seg-btn" data-muteall-opt="on">On</button>
+                </div>
+              </div>
+
+              <div class="pro-slider-card">
+                <div class="pro-slider-head">
+                  <label class="pro-setting-name" for="ig-vol-slider">Master Volume</label>
+                  <span id="ig-vol-value" class="pro-slider-val tabular-readout">100%</span>
+                </div>
+                <input
+                  type="range"
+                  id="ig-vol-slider"
+                  class="ig-range-slider"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="100"
+                />
+              </div>
+
+              <div class="pro-slider-card">
+                <div class="pro-slider-head">
+                  <label class="pro-setting-name" for="pro-music-slider">Ambience</label>
+                  <span id="pro-music-value" class="pro-slider-val tabular-readout">85%</span>
+                </div>
+                <input
+                  type="range"
+                  id="pro-music-slider"
+                  class="ig-range-slider"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="85"
+                />
+              </div>
+
+              <div class="pro-slider-card">
+                <div class="pro-slider-head">
+                  <label class="pro-setting-name" for="pro-sfx-slider">SFX</label>
+                  <span id="pro-sfx-value" class="pro-slider-val tabular-readout">100%</span>
+                </div>
+                <input
+                  type="range"
+                  id="pro-sfx-slider"
+                  class="ig-range-slider"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="100"
+                />
+              </div>
+
+              <div class="pro-slider-card">
+                <div class="pro-slider-head">
+                  <label class="pro-setting-name" for="pro-dialogue-slider">Hindi Dialogue Volume</label>
+                  <span id="pro-dialogue-value" class="pro-slider-val tabular-readout">100%</span>
+                </div>
+                <input
+                  type="range"
+                  id="pro-dialogue-slider"
+                  class="ig-range-slider"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value="100"
+                />
+              </div>
+
+              <div class="pro-setting-row">
+                <div class="pro-setting-info">
+                  <div class="pro-setting-name">Character Voices</div>
+                  <div class="pro-setting-hint">Spoken Hindi story dialogue &amp; Haveli voice lines</div>
+                </div>
+                <div class="ig-segmented-group pro-seg-sm" id="pro-voices-group" role="group" aria-label="Character Voices">
+                  <button type="button" class="ig-seg-btn" data-voices-opt="off">Off</button>
+                  <button type="button" class="ig-seg-btn active" data-voices-opt="on">On</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 4: ACCOUNT & BASIC -->
+            <div id="pro-panel-account" class="pro-tab-panel hidden" role="tabpanel">
+              <div class="pro-setting-row">
+                <div class="pro-setting-info">
+                  <label class="pro-setting-name" for="pro-player-name-input">Player Name</label>
+                  <div class="pro-setting-hint">Displayed on Lobby banner &amp; Survivor Profile</div>
+                </div>
+                <div class="pro-name-edit-wrap">
+                  <input
+                    id="pro-player-name-input"
+                    type="text"
+                    maxlength="20"
+                    value="Aarav"
+                    class="pro-text-input"
+                  />
+                </div>
+              </div>
+
+              <div class="pro-setting-row">
+                <div class="pro-setting-info">
+                  <div class="pro-setting-name">Language</div>
+                  <div class="pro-setting-hint">Dialogue &amp; subtitle language preference</div>
+                </div>
+                <div class="ig-segmented-group pro-seg-sm" id="pro-lang-group" role="group" aria-label="Language">
+                  <button type="button" class="ig-seg-btn active" data-lang-opt="hi">Hindi</button>
+                  <button type="button" class="ig-seg-btn" data-lang-opt="en">English</button>
+                </div>
+              </div>
+
+              <div class="pro-setting-row">
+                <div class="pro-setting-info">
+                  <div class="pro-setting-name">Local Cache</div>
+                  <div class="pro-setting-hint">Clears cached offline assets &amp; temporary data</div>
+                </div>
+                <button type="button" id="pro-clear-cache-btn" class="pro-action-btn">
+                  Clear Local Cache
+                </button>
+              </div>
+
+              <div class="pro-setting-row">
+                <div class="pro-setting-info">
+                  <div class="pro-setting-name">Reset Local Progress</div>
+                  <div class="pro-setting-hint">Clears saved game slot, career stats &amp; unlocked demo badges</div>
+                </div>
+                <button type="button" id="pro-reset-progress-btn" class="pro-action-btn pro-action-danger">
+                  Reset Local Progress
+                </button>
+              </div>
+              <div id="pro-account-feedback" class="pro-account-feedback hidden" role="status"></div>
+
+              <div class="pro-setting-row">
+                <div class="pro-setting-info">
+                  <div class="pro-setting-name">Legal &amp; Safety</div>
+                  <div class="pro-setting-hint">QWG Aryan Studios offline privacy &amp; terms notice</div>
+                </div>
+                <button type="button" id="pro-privacy-btn" class="pro-action-btn">
+                  Privacy Policy
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ig-settings-footer">
+          <button
+            id="pause-skip-story-btn"
+            type="button"
+            class="btn btn-secondary hidden"
+          >
+            ⏭️ Skip Story
+          </button>
+          <button
+            id="pause-exit-menu-btn"
+            type="button"
+            class="ig-footer-btn ig-footer-danger"
+          >
+            Exit to Main Menu
+          </button>
+          <button
+            id="resume-game-btn"
+            type="button"
+            class="ig-footer-btn ig-footer-primary"
+          >
+            Resume Game
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3B-ii. PRIVACY POLICY & TERMS MODAL (Opened from Tap-to-Begin or Settings) -->
+    <div id="privacy-policy-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="privacy-policy-title">
+      <div class="privacy-modal-card">
+        <div class="ig-settings-header">
+          <h2 id="privacy-policy-title" class="ig-settings-title">PRIVACY POLICY &amp; TERMS</h2>
+          <button type="button" id="privacy-policy-close-btn" class="ig-settings-close-x" aria-label="Close Privacy Policy">
+            ✕
+          </button>
+        </div>
+        <div class="privacy-modal-body">
+          <p><strong>QWG Aryan Studios — The Rakt Pishachini: Rukmini Ka Shrap (v1.0.0 DEMO)</strong></p>
+          <p>
+            <strong>Offline Single-Player Privacy:</strong> This demo runs locally on your device. Your player nickname, generated local UID, survival stats, unlocked badges, custom HUD layout, and display/audio settings are saved exclusively in on-device browser storage (<code>localStorage</code>). We do not collect, track, sell, or share personal information with third-party advertisers.
+          </p>
+          <p>
+            <strong>Terms &amp; Fictional Content:</strong> All characters, locations (including Thakur Haveli), and supernatural events depicted in this game are entirely fictional. Offline caching stores static game resources for smooth PWA performance and can be cleared anytime from Settings → Account &amp; Basic.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3B-iii. RESET LOCAL PROGRESS CONFIRMATION MODAL -->
+    <div id="reset-progress-confirm-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="reset-progress-title">
+      <div class="privacy-modal-card reset-confirm-card">
+        <div class="ig-settings-header">
+          <h2 id="reset-progress-title" class="ig-settings-title">RESET LOCAL PROGRESS?</h2>
+          <button type="button" id="reset-progress-close-x" class="ig-settings-close-x" aria-label="Cancel Reset">
+            ✕
+          </button>
+        </div>
+        <div class="privacy-modal-body">
+          <p>
+            This will permanently erase your saved Thakur Haveli match, career stats (Escapes, Relics Burned, Friends Rescued, Deaths, Best Time), and unlocked Demo Badges on this device. Your Settings and Custom HUD layout will stay intact.
+          </p>
+          <div class="reset-confirm-actions">
+            <button type="button" id="reset-progress-cancel-btn" class="pro-action-btn">
+              Cancel
+            </button>
+            <button type="button" id="reset-progress-confirm-btn" class="pro-action-btn pro-action-danger">
+              Confirm Reset
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3C. FREE FIRE-STYLE FLOATING CUSTOM HUD EDITOR OVERLAY -->
+    <div
+      id="hud-layout-editor-overlay"
+      class="hud-editor-overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Custom HUD Editor"
+    >
+      <div class="hud-editor-grid-bg" aria-hidden="true"></div>
+      <div class="ff-hud-editor-box">
+        <div class="ff-editor-top-row">
+          <div class="ff-preset-switcher" aria-label="HUD Preset Switcher">
+            <button
+              type="button"
+              id="hud-editor-preset-prev"
+              class="ff-icon-mini-btn"
+              title="Previous Preset"
+              aria-label="Previous HUD Preset"
+            >
+              ◀
+            </button>
+            <span id="hud-editor-preset-label" class="ff-preset-label">HUD 1</span>
+            <button
+              type="button"
+              id="hud-editor-preset-next"
+              class="ff-icon-mini-btn"
+              title="Next Preset"
+              aria-label="Next HUD Preset"
+            >
+              ▶
+            </button>
+          </div>
+
+          <span id="hud-editor-selected-name" class="ff-selected-pill">
+            Grab / Interact (पकड़ें / उपयोग)
+          </span>
+
+          <div class="ff-editor-top-actions">
+            <button
+              type="button"
+              id="hud-editor-reset-btn"
+              class="ff-action-btn ff-btn-reset"
+              title="Reset Current Preset to Default"
+            >
+              ↺ Reset
+            </button>
+            <button
+              type="button"
+              id="hud-editor-save-btn"
+              class="ff-action-btn ff-btn-save"
+              title="Save HUD Layout"
+            >
+              💾 Save
+            </button>
+            <button
+              type="button"
+              id="hud-editor-cancel-btn"
+              class="ff-action-btn ff-btn-close"
+              title="Close Without Saving"
+              aria-label="Close Editor"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div class="ff-editor-body-row">
+          <div class="ff-sliders-col">
+            <label class="ff-slider-row" for="hud-editor-size-slider">
+              <span class="ff-slider-name">Size</span>
+              <input
+                type="range"
+                id="hud-editor-size-slider"
+                min="50"
+                max="150"
+                step="5"
+                value="100"
+              />
+              <strong id="hud-editor-size-value" class="tabular-readout">100%</strong>
+            </label>
+            <label class="ff-slider-row" for="hud-editor-opacity-slider">
+              <span class="ff-slider-name">Opacity</span>
+              <input
+                type="range"
+                id="hud-editor-opacity-slider"
+                min="30"
+                max="100"
+                step="5"
+                value="100"
+              />
+              <strong id="hud-editor-opacity-value" class="tabular-readout">100%</strong>
+            </label>
+          </div>
+
+          <!-- 4-Way Fine-Adjust Arrow Pad -->
+          <div class="ff-dpad" aria-label="Fine Position Adjust">
+            <button type="button" id="hud-nudge-up" class="ff-dpad-btn dpad-up" aria-label="Move Up">▲</button>
+            <button type="button" id="hud-nudge-left" class="ff-dpad-btn dpad-left" aria-label="Move Left">◀</button>
+            <span class="ff-dpad-center" aria-hidden="true">⊕</span>
+            <button type="button" id="hud-nudge-right" class="ff-dpad-btn dpad-right" aria-label="Move Right">▶</button>
+            <button type="button" id="hud-nudge-down" class="ff-dpad-btn dpad-down" aria-label="Move Down">▼</button>
+          </div>
+        </div>
+      </div>
+      <div id="hud-editor-toast" class="hud-editor-toast hidden" role="status"></div>
+      <div id="hud-editor-stage" class="hud-editor-stage"></div>
+    </div>
+
+    <!-- 4. TANTRIK AI RITUAL SANCTUM MODAL (All Gemini Capabilities) -->
+    <div id="sanctum-modal" class="modal-backdrop hidden">
+      <div class="sanctum-card">
+        <div class="sanctum-header">
+          <div>
+            <div class="sanctum-title">
+              TANTRIK KALBHAIRAV ARCHIVE &amp; AI SANCTUM
+            </div>
+            <div class="sanctum-subtitle">
+              High Thinking Oracle · Relic Visions (1K/2K/4K) · Photo/Text
+              Apparitions · Lyria Score
+            </div>
+          </div>
+          <button id="close-sanctum-btn" class="skip-btn">✖ Close</button>
+        </div>
+
+        <div class="sanctum-tabs">
+          <button class="tab-btn active" data-tab="tab-oracle">
+            🧠 Tantrik Oracle (High Thinking)
+          </button>
+          <button class="tab-btn" data-tab="tab-visions">
+            🖼️ Cursed Visions (1K/2K/4K &amp; Edit)
+          </button>
+          <button class="tab-btn" data-tab="tab-video">
+            🎬 Apparition Video (16:9 / 9:16)
+          </button>
+          <button class="tab-btn" data-tab="tab-music">
+            🎵 Lyria Horror Score &amp; TTS
+          </button>
+        </div>
+
+        <!-- TAB 1: High Thinking Oracle (gemini-4-argon, ThinkingLevel.HIGH) -->
+        <div id="tab-oracle" class="sanctum-tab-body">
+          <p class="tab-desc">
+            Consult the omniscient spirit of Tantrik Kalbhairav using
+            <strong>gemini-4-argon</strong> with
+            <code>ThinkingLevel.HIGH</code> for deep strategic survival analysis.
+          </p>
+          <div class="input-row">
+            <input
+              type="text"
+              id="oracle-input"
+              class="input-field"
+              placeholder="Ask how to survive Rukmini or decode the 1992 Thakur curse..."
+              value="How can our 4-player squad distract the blind witch Rukmini while burning the 4 relics in the courtyard well?"
+            />
+            <button id="oracle-ask-btn" class="btn btn-inline">
+              Consult Oracle
+            </button>
+          </div>
+          <div id="oracle-output" class="sanctum-output-box">
+            Awaiting your question...
+          </div>
+        </div>
+
+        <!-- TAB 2: High-Quality Image Generation (gemini-3-pro-image 1K/2K/4K) & Image Editing (gemini-nano-banana-2.1) -->
+        <div id="tab-visions" class="sanctum-tab-body hidden">
+          <p class="tab-desc">
+            Manifest high-resolution cursed visions with
+            <strong>gemini-3-pro-image</strong> (1K / 2K / 4K) or create &amp;
+            edit paranormal photos with <strong>gemini-nano-banana-2.1</strong>.
+          </p>
+          <div class="input-row">
+            <input
+              type="text"
+              id="vision-prompt"
+              class="input-field"
+              placeholder="Describe the cursed relic or ghostly vision..."
+              value="An ancient cursed golden ghungroo anklet glowing with crimson fire on a stone well edge inside a 1992 Indian mansion"
+            />
+            <select id="vision-size-select" class="select-lang">
+              <option value="1K" selected>Size: 1K</option>
+              <option value="2K">Size: 2K</option>
+              <option value="4K">Size: 4K</option>
+            </select>
+          </div>
+          <div class="input-row">
+            <label class="file-label">
+              📷 Optional Photo for Edit / Reference:
+              <input type="file" id="vision-file-input" accept="image/*" />
+            </label>
+            <button id="vision-pro-btn" class="btn btn-inline">
+              Generate HQ Image (gemini-3-pro-image)
+            </button>
+            <button
+              id="vision-edit-btn"
+              class="btn btn-inline btn-secondary"
+            >
+              Create / Edit (gemini-nano-banana-2.1)
+            </button>
+          </div>
+          <div id="vision-status" class="status-line"></div>
+          <div class="media-preview-box">
+            <img
+              id="vision-result-img"
+              class="generated-image hidden"
+              alt="Generated cursed vision"
+              referrerpolicy="no-referrer"
+            />
+          </div>
+        </div>
+
+        <!-- TAB 3: Video Generation & Photo Animation (gemini-omni-1.2-flash via Interactions API) -->
+        <div id="tab-video" class="sanctum-tab-body hidden">
+          <p class="tab-desc">
+            Select one of the 3 official <strong>Thakur Haveli</strong> horror
+            cutscene prompts or upload a photo to animate using
+            <strong>gemini-omni-1.2-flash</strong> via the Interactions API.
+          </p>
+          <div class="input-row">
+            <button
+              type="button"
+              id="preset-scene-1"
+              class="scene-chip active"
+            >
+              सीन 1: हवेली और कार (Cinematic Intro)
+            </button>
+            <button type="button" id="preset-scene-2" class="scene-chip">
+              सीन 2: रुक्मिणी (Jumpscare Animation)
+            </button>
+            <button type="button" id="preset-scene-3" class="scene-chip">
+              सीन 3: सूखा कुआं और चिता (Climax Scene)
+            </button>
+          </div>
+          <div class="input-row">
+            <input
+              type="text"
+              id="video-prompt"
+              class="input-field"
+              placeholder="Describe the horror flashback motion..."
+              value="Cinematic 3D animation, dark horror style, heavy thunderstorm at midnight outside a decaying haunted Indian mansion named 'Thakur Haveli'. An old vintage car stalls in front of the massive iron gates, headlights flickering, terrifying eerie atmosphere, Unreal Engine 5 render, highly detailed, 4k."
+            />
+            <select id="video-aspect-select" class="select-lang">
+              <option value="16:9" selected>16:9 Landscape</option>
+              <option value="9:16">9:16 Portrait</option>
+            </select>
+          </div>
+          <div class="input-row">
+            <label class="file-label">
+              📷 Upload Photo to Animate (Optional):
+              <input type="file" id="video-file-input" accept="image/*" />
+            </label>
+            <button id="video-gen-btn" class="btn btn-inline">
+              Generate / Animate Video (gemini-omni-1.2-flash)
+            </button>
+          </div>
+          <div id="video-status" class="status-line"></div>
+          <div class="media-preview-box">
+            <video
+              id="video-result-player"
+              class="generated-video hidden"
+              controls
+              loop
+              playsinline
+            ></video>
+          </div>
+        </div>
+
+        <!-- TAB 4: Music Generation (Lyria 3 Clip & Pro) & Custom TTS (gemini-3.8-flash-tts) -->
+        <div id="tab-music" class="sanctum-tab-body hidden">
+          <p class="tab-desc">
+            Compose custom haunted mansion soundtracks with
+            <strong>lyria-3-clip-preview</strong> (30s clip) or
+            <strong>lyria-3-pro-preview</strong> (full track), or synthesize
+            dramatic horror narration with <strong>gemini-3.8-flash-tts</strong>.
+          </p>
+          <div class="input-row">
+            <input
+              type="text"
+              id="music-prompt"
+              class="input-field"
+              placeholder="Describe the horror soundtrack..."
+              value="Dark 1992 Indian horror soundtrack with haunting payal ankle bells, deep tanpura drone, thunder, and suspenseful strings"
+            />
+            <select id="music-mode-select" class="select-lang">
+              <option value="clip" selected>
+                Short Clip (lyria-3-clip-preview)
+              </option>
+              <option value="pro">Full Track (lyria-3-pro-preview)</option>
+            </select>
+            <button id="music-gen-btn" class="btn btn-inline">
+              Compose Music
+            </button>
+          </div>
+          <div id="music-status" class="status-line"></div>
+          <audio
+            id="music-result-player"
+            class="audio-player hidden"
+            controls
+          ></audio>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. VICTORY / GAME OVER MODAL -->
+    <div id="endgame-modal" class="modal-backdrop hidden">
+      <div class="menu-box">
+        <h2 id="endgame-title" class="game-title" style="font-size: 2.2rem">
+          CURSE BROKEN
+        </h2>
+        <p id="endgame-message" class="subtitle" style="color: #eee"></p>
+        <button id="restart-game-btn" class="btn">Play Again</button>
+      </div>
+    </div>
+
+    <!-- 6. iOS SAFARI ADD-TO-HOME-SCREEN GUIDE MODAL -->
+    <div id="ios-install-modal" class="modal-backdrop hidden">
+      <div class="menu-box ios-install-card">
+        <h3 class="ios-install-title">Install on iPhone / iPad</h3>
+        <p class="ios-install-desc">
+          1. Tap the <strong>Share</strong> button in Safari.<br />
+          2. Scroll down and tap <strong>Add to Home Screen</strong>.<br />
+          3. Launch <strong>Rakt Pishachini</strong> fullscreen from your home screen.
+        </p>
+        <button id="ios-install-close-btn" class="btn btn-secondary" type="button">
+          Close
+        </button>
+      </div>
+    </div>
+
+    <!-- 7. OFFLINE MODE INDICATOR -->
+    <div
+      id="offline-status-banner"
+      class="offline-status-banner hidden"
+      role="status"
+      aria-live="polite"
+    >
+      <span class="offline-dot" aria-hidden="true"></span>
+      <span>Offline Mode — Playing from cached files</span>
+    </div>
+
+    <script type="module" src="/src/index.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "name": "The Rakt Pishachini: Rukmini Ka Shrap",
+  "description": "1-4 Player Spatial WebXR & 3D Horror Survival Game in Thakur Mansion powered by XR Blocks, Three.js, and Gemini AI.",
+  "requestFramePermissions": ["microphone", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

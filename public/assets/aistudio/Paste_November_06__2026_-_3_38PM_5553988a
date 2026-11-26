@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Rakt Pishachini: Rukmini Ka Shrap - Cinematic Story & Game</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #fff; }
+        #canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000; transition: opacity 1s ease; }
+        .hidden { display: none !important; opacity: 0; pointer-events: none; }
+        
+        /* Main Menu */
+        h1.game-title { font-size: 3.2rem; color: #ff1a1a; text-shadow: 0 0 20px rgba(255,0,0,0.8), 0 0 40px #000; text-align: center; margin-bottom: 5px; letter-spacing: 2px; }
+        .subtitle { font-size: 1.1rem; color: #b3b3b3; margin-bottom: 25px; letter-spacing: 1px; text-align: center; }
+        .menu-box { background: rgba(20, 0, 0, 0.85); border: 2px solid #ff1a1a; padding: 30px; border-radius: 12px; box-shadow: 0 0 30px rgba(255,0,0,0.4); text-align: center; max-width: 420px; width: 90%; }
+        .btn { background: #ff1a1a; color: #fff; border: none; padding: 12px 25px; font-size: 1.1rem; font-weight: bold; border-radius: 6px; cursor: pointer; margin: 10px 0; width: 100%; transition: 0.3s; box-shadow: 0 0 10px rgba(255,0,0,0.5); }
+        .btn:hover { background: #cc0000; box-shadow: 0 0 20px rgba(255,0,0,0.8); }
+        .input-field { width: 90%; padding: 12px; background: #050505; border: 1px solid #ff1a1a; color: #fff; border-radius: 5px; margin: 10px 0; font-size: 1rem; text-align: center; }
+        .settings-row { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; font-size: 1rem; color: #ddd; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 5px; }
+        .select-lang { background: #111; color: #fff; border: 1px solid #ff1a1a; padding: 6px 12px; border-radius: 4px; font-size: 1rem; cursor: pointer; }
+
+        /* Cinematic Story Screen with Dynamic Image Slideshow */
+        #story-screen { background: #000; justify-content: space-between; padding: 30px; box-sizing: border-box; }
+        .story-visual-box { width: 100%; max-width: 700px; height: 320px; border: 2px solid #ff1a1a; border-radius: 10px; background-size: cover; background-position: center; position: relative; box-shadow: 0 0 25px rgba(255,0,0,0.5); margin-bottom: 15px; }
+        .story-visual-box::after { content: ''; position: absolute; top:0; left:0; width:100%; height:100%; background: linear-gradient(to top, rgba(0,0,0,0.9), transparent); }
+        #story-content { max-width: 850px; text-align: center; margin: auto; }
+        #chapter-title { font-size: 1.6rem; color: #ff4d4d; margin-bottom: 10px; text-shadow: 0 0 10px rgba(255,0,0,0.5); }
+        #story-text { font-size: 1.15rem; line-height: 1.6; color: #e6e6e6; min-height: 100px; }
+        .story-controls { display: flex; justify-content: space-between; width: 100%; align-items: center; }
+        .skip-btn { background: rgba(255,255,255,0.1); border: 1px solid #fff; color: #fff; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+        .skip-btn:hover { background: #ff1a1a; border-color: #ff1a1a; }
+
+        /* In-Game HUD */
+        #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; }
+        .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .panel { background: rgba(0,0,0,0.7); border: 1px solid #ff1a1a; padding: 15px; border-radius: 8px; pointer-events: auto; }
+        .radar-box { width: 120px; height: 120px; border-radius: 50%; border: 2px dashed #ff1a1a; background: rgba(10,0,0,0.8); position: relative; overflow: hidden; }
+        .chat-box { width: 300px; height: 150px; overflow-y: auto; font-size: 0.85rem; display: flex; flex-direction: column; gap: 5px; }
+        
+        .controls-overlay { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 40px; box-sizing: border-box; pointer-events: auto; }
+        .joystick-base { width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.3); position: relative; touch-action: none; }
+        .joystick-knob { width: 50px; height: 50px; border-radius: 50%; background: rgba(255,26,26,0.8); position: absolute; top: 35px; left: 35px; }
+        .action-btns { display: flex; gap: 15px; align-items: flex-end; }
+        .action-btn { width: 65px; height: 65px; border-radius: 50%; background: rgba(255,0,0,0.7); border: 2px solid #fff; color: #fff; font-weight: bold; font-size: 0.9rem; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 10px rgba(255,0,0,0.8); }
+        .mic-active { border-color: #00ff00 !important; box-shadow: 0 0 15px #00ff00 !important; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+    </style>
+</head>
+<body>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- 1. MAIN MENU -->
+    <div id="menu-screen" class="screen">
+        <h1 class="game-title">THE RAKT PISHACHINI</h1>
+        <div class="subtitle">Rukmini Ka Shrap | Multiplayer Horror Game</div>
+        <div class="menu-box">
+            <div class="settings-row">
+                <span>Story Language:</span>
+                <select id="lang-select" class="select-lang">
+                    <option value="hi" selected>हिंदी (Hindi)</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+            <input type="text" id="player-name" class="input-field" placeholder="Enter Player Name" value="Commandant">
+            <button class="btn" onclick="createRoom()">Create Room</button>
+            <input type="text" id="room-code-input" class="input-field" placeholder="Enter Room Code">
+            <button class="btn" style="background:#333; border:1px solid #ff1a1a;" onclick="joinRoom()">Join Room</button>
+        </div>
+    </div>
+
+    <!-- 2. CINEMATIC STORY SLIDESHOW SCREEN -->
+    <div id="story-screen" class="screen hidden">
+        <div style="width:100%; display:flex; justify-content:flex-end;">
+            <button class="skip-btn" onclick="skipStoryToGame()">Skip Story ⏭️</button>
+        </div>
+        <div id="story-content">
+            <div id="story-visual" class="story-visual-box"></div>
+            <div id="chapter-title">Chapter 1</div>
+            <div id="story-text">Loading cinematic story...</div>
+        </div>
+        <div class="story-controls">
+            <button class="skip-btn" onclick="prevChapter()">⬅️ Prev</button>
+            <span id="story-timer" style="color:#ff4d4d; font-weight:bold;">00:00 / 10:00</span>
+            <button class="skip-btn" onclick="nextChapter()">Next ➡️</button>
+        </div>
+    </div>
+
+    <!-- 3. IN-GAME HUD & CANVAS -->
+    <div id="canvas-container"></div>
+
+    <div id="hud" class="hidden">
+        <div class="hud-top">
+            <div class="panel">
+                <div style="font-weight:bold; color:#ff4d4d; margin-bottom:5px;">Mission Objective</div>
+                <div id="item-counter">Cursed Items Found: 0 / <span id="total-required">4</span></div>
+                <div id="player-count-display" style="font-size:0.8rem; color:#aaa; margin-top:3px;">Players: 1 (Default 4 Items)</div>
+            </div>
+            <div class="radar-box">
+                <div style="position:absolute; top:50%; left:50%; width:6px; height:6px; background:#00ff00; border-radius:50%; transform:translate(-3px,-3px);"></div>
+            </div>
+            <div class="panel chat-box" id="chat-messages">
+                <div style="color:#ff4d4d; font-weight:bold;">[Live Voice & Team Chat]</div>
+                <div>System: Mansion gates are locked. Beware of the blind witch!</div>
+            </div>
+        </div>
+
+        <div class="controls-overlay">
+            <div class="joystick-base" id="joystick">
+                <div class="joystick-knob" id="joystick-knob"></div>
+            </div>
+            <div class="action-btns">
+                <button class="action-btn" id="mic-btn" onclick="toggleMic()" title="Mic Toggle">🎤 MIC</button>
+                <button class="action-btn" onclick="triggerQuickChat()">💬 CHAT</button>
+                <button class="action-btn" onclick="interactObject()">✋ GRAB</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentChapter = 0;
+        let selectedLang = 'hi';
+        let playerCount = 1;
+        let requiredItems = 4;
+        let collectedCount = 0;
+        let isMicOn = false;
+
+        // Cinematic Story Chapters with Horror Visual Image Backdrops (Unsplash Atmospheric Dark Art URLs)
+        const storyChapters = {
+            hi: [
+                { title: "अध्याय 1: काली घाटी और भटकती कार", text: "साल 1992, चंदनपुर गांव के बाहर। रात के 2 बज रहे हैं। तेज़ बारिश और आंधी के बीच चार दोस्तों की कार अचानक ठाकुर हवेली के सामने आकर बंद हो जाती है।", img: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=800&auto=format&fit=crop" },
+                { title: "अध्याय 2: पागल चौकीदार की चेतावनी", text: "दरवाजे पर दस्तक देने पर कोई इंसान नहीं, बल्कि एक बूढ़ा पागल चौकीदार लालटेन लेकर आता है। वह कांपते हुए कहता है— 'अंदर मत जाओ! आज रुक्मिणी की बरसी है!'", img: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=800&auto=format&fit=crop" },
+                { title: "अध्याय 3: 1992 की वो मनहूस शादी", text: "गांव की सबसे खूबसूरत लड़की रुक्मिणी की शादी ठाकुर के बेटे से तय हुई थी। उसने लाल जोड़ा पहना था, पर वह नहीं जानती थी कि यह शादी नहीं, बलि की तैयारी है।", img: "https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=800&auto=format&fit=crop" },
+                { title: "अध्याय 4: शापित तहखाना और खजाने का लालच", text: "तांत्रिका कालभैरव की भविष्यवाणी थी कि अमावस की रात सुहागन के खून की बलि देने से खजाना खुलेगा। ठाकुर ने धोखे से रुक्मिणी को तहखाने में खींच लिया।", img: "https://images.unsplash.com/photo-1514539079130-25950c84af65?q=80&w=800&auto=format&fit=crop" },
+                { title: "अध्याय 5: विश्वासघात और क्रूरता", text: "रुक्मिणी ने गिड़गिड़ाने की कोशिश की, पर तांत्रिक ने उसकी जीभ काट दी और लोहे की रॉड से दोनों पैर तोड़कर पीछे मोड़ दिए ताकि वह भाग न सके।", img: "https://images.unsplash.com/photo-1508739773434-c26b3d09e071?q=80&w=800&auto=format&fit=crop" },
+                { title: "अध्याय 6: सूखे कुएं में जिंदा दफन", text: "हवेली के कुएं में जलती हुई चिता पर रुक्मिणी को जिंदा फेंक दिया गया। आग के बीच उसकी आंखें सुलग उठीं और उसने भयानक श्राप दिया।", img: "https://images.unsplash.com/photo-1509228468518-180dd4864904?q=80&w=800&auto=format&fit=crop" },
+                { title: "अध्याय 7: रक्त-पिशाचिनी का जन्म", text: "अमावस की रात कुएं का पत्थर टूटा और बाहर आई—एक खौफनाक रक्त-पिशाचिनी! उल्टे पैर, जली साड़ी और 90 डिग्री मुड़ी गर्दन।", img: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=800&auto=format&fit=crop" },
+                { title: "अध्याय 8: अंधी पिशाचिनी और सुनने की शक्ति", text: "आग से रुक्मिणी अंधी हो चुकी है, पर उसका कान इतना तेज़ है कि वह सांसों की आहट सुनकर सीधा शिकार पर झपटती है।", img: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=800&auto=format&fit=crop" },
+                { title: "अध्याय 9: हवेली से मुक्ति का रास्ता", text: "हवेली के 4 कमरों में रुक्मिणी की 4 शापित चीज़ें (पायल, दुपट्टा, खंजर, अस्थि कलश) छिपी हैं। इन्हें ढूंढकर कुएं में जलाना होगा।", img: "https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=800&auto=format&fit=crop" },
+                { title: "अध्याय 10: दरवाजा बंद और खौफनाक शुरुआत!", text: "वर्तमान में लौटते ही चारों दोस्त हवेली के अंदर आते हैं। पीछे का लोहे का दरवाजा बंद होता है। ऊपर से पायल की 'छन-छन' आवाज़ आ रही है... अब बचो!", img: "https://images.unsplash.com/photo-1514539079130-25950c84af65?q=80&w=800&auto=format&fit=crop" }
+            ],
+            en: [
+                { title: "Chapter 1: The Dark Valley and Broken Car", text: "Year 1992, outside Chandanpur village. At 2:00 AM, four friends' car stalls right in front of the ominous Thakur Mansion during a fierce storm.", img: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=800&auto=format&fit=crop" },
+                { title: "Chapter 2: The Mad Watchman's Warning", text: "An unhinged old watchman holding a lantern appears, trembling and warning them— 'Do not go inside! Tonight is Rukmini's death anniversary!'", img: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=800&auto=format&fit=crop" },
+                { title: "Chapter 3: The Cursed Wedding of 1992", text: "Rukmini was wedded to Thakur's son. Adorned in red bridal attire, she had no idea this wasn't a marriage, but a dark sacrificial trap.", img: "https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=800&auto=format&fit=crop" },
+                { title: "Chapter 4: The Cursed Basement", text: "Tantrik Kalbhairav prophesied that spilling a bride's blood would unlock ancestral treasure. Thakur deceitfully dragged Rukmini into the basement.", img: "https://images.unsplash.com/photo-1514539079130-25950c84af65?q=80&w=800&auto=format&fit=crop" },
+                { title: "Chapter 5: Betrayal and Cruelty", text: "The tantrik cut out her tongue and iron rods shattered both her legs, bending them backwards so she could never run again.", img: "https://images.unsplash.com/photo-1508739773434-c26b3d09e071?q=80&w=800&auto=format&fit=crop" },
+                { title: "Chapter 6: Buried Alive in the Dry Well", text: "Rukmini was thrown alive onto a burning pyre inside the courtyard well, cursing the mansion with her dying breath.", img: "https://images.unsplash.com/photo-1509228468518-180dd4864904?q=80&w=800&auto=format&fit=crop" },
+                { title: "Chapter 7: Birth of the Blood Witch", text: "On Amavasya night, the well lid shattered. Emerging from the depths was a horrifying blood witch with backward-twisted legs.", img: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=800&auto=format&fit=crop" },
+                { title: "Chapter 8: The Blind Predator", text: "The fire blinded Rukmini, but super-enhanced her hearing. She tracks prey instantly by detecting whispers in the air.", img: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=800&auto=format&fit=crop" },
+                { title: "Chapter 9: Path to Freedom", text: "Four cursed relics are hidden across mansion chambers and must be incinerated in the courtyard well to break the curse.", img: "https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=800&auto=format&fit=crop" },
+                { title: "Chapter 10: The Door Slams Shut!", text: "Returning to the present, the front door slams shut. The chilling sound of metallic ankle bells echoes from upstairs... Survive now!", img: "https://images.unsplash.com/photo-1514539079130-25950c84af65?q=80&w=800&auto=format&fit=crop" }
+            ]
+        };
+
+        function createRoom() {
+            selectedLang = document.getElementById('lang-select').value;
+            playerCount = 1;
+            requiredItems = 4;
+            startStorySequence();
+        }
+
+        function joinRoom() {
+            selectedLang = document.getElementById('lang-select').value;
+            playerCount = Math.floor(Math.random() * 3) + 2;
+            requiredItems = playerCount * 4;
+            startStorySequence();
+        }
+
+        function startStorySequence() {
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('story-screen').classList.remove('hidden');
+            currentChapter = 0;
+            updateStoryUI();
+        }
+
+        function updateStoryUI() {
+            let chapters = storyChapters[selectedLang];
+            if(currentChapter < chapters.length) {
+                document.getElementById('chapter-title').innerText = chapters[currentChapter].title;
+                document.getElementById('story-text').innerText = chapters[currentChapter].text;
+                document.getElementById('story-visual').style.backgroundImage = `url('${chapters[currentChapter].img}')`;
+                let mins = Math.floor(currentChapter);
+                document.getElementById('story-timer').innerText = `0${mins}:00 / 10:00`;
+            } else {
+                skipStoryToGame();
+            }
+        }
+
+        function nextChapter() {
+            currentChapter++;
+            let chapters = storyChapters[selectedLang];
+            if(currentChapter < chapters.length) {
+                updateStoryUI();
+            } else {
+                skipStoryToGame();
+            }
+        }
+
+        function prevChapter() {
+            if(currentChapter > 0) {
+                currentChapter--;
+                updateStoryUI();
+            }
+        }
+
+        function skipStoryToGame() {
+            document.getElementById('story-screen').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            document.getElementById('total-required').innerText = requiredItems;
+            document.getElementById('player-count-display').innerText = selectedLang === 'hi' ? `खिलाड़ी जुड़े: ${playerCount} (खोजनी हैं ${requiredItems} चीज़ें)` : `Players Connected: ${playerCount} (Items to find: ${requiredItems})`;
+            initThreeJSGame();
+        }
+
+        function initThreeJSGame() {
+            const container = document.getElementById('canvas-container');
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x020205);
+            scene.fog = new THREE.FogExp2(0x020205, 0.08);
+
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 1.6, 5);
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0x101015);
+            scene.add(ambientLight);
+
+            const flashlight = new THREE.SpotLight(0xfffaed, 2, 15, Math.PI / 6, 0.5, 1);
+            flashlight.position.set(0, 1.6, 0);
+            camera.add(flashlight);
+            flashlight.target.position.set(0, 1.6, -5);
+            camera.add(flashlight.target);
+            scene.add(camera);
+
+            const floorGeo = new THREE.PlaneGeometry(40, 40);
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            scene.add(floor);
+
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x2b1d1d, roughness: 0.8 });
+            scene.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(40, 6, 1), wallMat), {position: new THREE.Vector3(0, 3, -20)}));
+            scene.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(1, 6, 40), wallMat), {position: new THREE.Vector3(-20, 3, 0)}));
+            scene.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(1, 6, 40), wallMat), {position: new THREE.Vector3(20, 3, 0)}));
+
+            const wellGeo = new THREE.CylinderGeometry(2, 2, 2, 16);
+            const wellMat = new THREE.MeshStandardMaterial({ color: 0x3d2817 });
+            const cursedWell = new THREE.Mesh(wellGeo, wellMat);
+            cursedWell.position.set(0, 1, -5);
+            scene.add(cursedWell);
+
+            window.collectedItems = 0;
+            window.itemsList = [];
+            for(let i=0; i<requiredItems; i++) {
+                let itemGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+                let itemMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0x550000 });
+                let item = new THREE.Mesh(itemGeo, itemMat);
+                item.position.set((Math.random() - 0.5) * 30, 0.5, (Math.random() - 0.5) * 30 - 5);
+                scene.add(item);
+                window.itemsList.push(item);
+            }
+
+            let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+            let joystickActive = false;
+            let joyStartX = 0, joyStartY = 0;
+            const joystick = document.getElementById('joystick');
+            const knob = document.getElementById('joystick-knob');
+
+            joystick.addEventListener('touchstart', (e) => {
+                joystickActive = true;
+                joyStartX = e.touches[0].clientX;
+                joyStartY = e.touches[0].clientY;
+            });
+
+            joystick.addEventListener('touchmove', (e) => {
+                if(!joystickActive) return;
+                let dx = e.touches[0].clientX - joyStartX;
+                let dz = e.touches[0].clientY - joyStartY;
+                let dist = Math.min(40, Math.hypot(dx, dz));
+                let angle = Math.atan2(dz, dx);
+                knob.style.transform = `translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist}px)`;
+                
+                moveForward = dz < -10;
+                moveBackward = dz > 10;
+                moveLeft = dx < -10;
+                moveRight = dx > 10;
+            });
+
+            joystick.addEventListener('touchend', () => {
+                joystickActive = false;
+                knob.style.transform = `translate(0px, 0px)`;
+                moveForward = moveBackward = moveLeft = moveRight = false;
+            });
+
+            function animate() {
+                requestAnimationFrame(animate);
+                if (moveForward) camera.translateZ(-0.1);
+                if (moveBackward) camera.translateZ(0.1);
+                if (moveLeft) camera.translateX(-0.1);
+                if (moveRight) camera.translateX(0.1);
+
+                camera.position.x = Math.max(-18, Math.min(18, camera.position.x));
+                camera.position.z = Math.max(-18, Math.min(18, camera.position.z));
+
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            window.gameScene = scene;
+            window.gameCamera = camera;
+        }
+
+        function toggleMic() {
+            isMicOn = !isMicOn;
+            let btn = document.getElementById('mic-btn');
+            if(isMicOn) {
+                btn.classList.add('mic-active');
+                btn.innerText = "🔊 LIVE";
+                addChatMessage(selectedLang === 'hi' ? "System: माइक ऑन है। ध्यान रखें, रुक्मिणी आवाज़ सुन सकती है!" : "System: Mic ON. Beware, the witch can hear your voice!");
+            } else {
+                btn.classList.remove('mic-active');
+                btn.innerText = "🎤 MIC";
+                addChatMessage(selectedLang === 'hi' ? "System: माइक म्यूट है।" : "System: Mic MUTED.");
+            }
+        }
+
+        function triggerQuickChat() {
+            const dialogs = {
+                hi: ["भाई, चाबी इस कमरे में मिली!", "बच के रहना, पायल की आवाज़ पास आ रही है!", "मुझे पिंजरे से बचाओ!", "चलो सब लोग कुएं के पास मिलो।"],
+                en: ["Bro, found a key in this room!", "Watch out, ankle bells are getting closer!", "Save me from the cage!", "Everyone meet at the well."]
+            };
+            let list = dialogs[selectedLang];
+            let randomMsg = list[Math.floor(Math.random() * list.length)];
+            addChatMessage("Commandant: " + randomMsg);
+        }
+
+        function addChatMessage(text) {
+            let chatBox = document.getElementById('chat-messages');
+            let div = document.createElement('div');
+            div.innerText = text;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function interactObject() {
+            if(!window.gameCamera || !window.itemsList) return;
+            for(let i = 0; i < window.itemsList.length; i++) {
+                let item = window.itemsList[i];
+                let dist = window.gameCamera.position.distanceTo(item.position);
+                if(dist < 3.5 && item.visible) {
+                    item.visible = false;
+                    collectedCount++;
+                    document.getElementById('item-counter').innerText = `${selectedLang === 'hi' ? 'शापित चीज़ें मिलीं' : 'Cursed Items Found'}: ${collectedCount} / ${requiredItems}`;
+                    addChatMessage(selectedLang === 'hi' ? "System: तुमने एक शापित वस्तु उठा ली है!" : "System: You picked up a cursed relic!");
+                    if(collectedCount >= requiredItems) {
+                        alert(selectedLang === 'hi' ? "बधाई हो! तुमने सभी शापित वस्तुएं जला दीं और जीत गए!" : "Congratulations! You burned all cursed items and escaped!");
+                        location.reload();
+                    }
+                    return;
+                }
+            }
+            addChatMessage(selectedLang === 'hi' ? "System: यहाँ कोई वस्तु नहीं है।" : "System: No item nearby.");
+        }
+    </script>
+</body>
+</html>
