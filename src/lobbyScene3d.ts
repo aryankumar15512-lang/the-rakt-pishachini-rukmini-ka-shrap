@@ -47,6 +47,7 @@ export class HorrorLobbyScene3D {
   private totalRainVertices = 0;
   private mistPlanes: THREE.Mesh[] = [];
   private isSoftwareGl: boolean;
+  private isMobileDevice: boolean;
   private isActive = false;
   private isProfileMode = false;
   private targetFps: 30 | 60 = 60;
@@ -72,9 +73,12 @@ export class HorrorLobbyScene3D {
     this.container = container;
     this.hostContainer = container;
     this.isSoftwareGl = detectSoftwareWebGL();
+    this.isMobileDevice =
+      /Android|iPhone|iPad/i.test(navigator.userAgent) ||
+      window.innerWidth < 950;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x070305);
-    this.scene.fog = new THREE.FogExp2(0x090406, 0.095);
+    this.scene.background = new THREE.Color(0x05070d);
+    this.scene.fog = new THREE.FogExp2(0x05070d, 0.095);
 
     this.camera = new THREE.PerspectiveCamera(36, 16 / 9, 0.1, 80);
     this.camera.position.set(0, 1.48, 4.15);
@@ -105,10 +109,12 @@ export class HorrorLobbyScene3D {
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.15;
+      renderer.setClearColor(0x05070d, 1);
+      const lowPower = this.isSoftwareGl || this.isMobileDevice;
       renderer.setPixelRatio(
-        this.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2),
+        lowPower ? 1 : Math.min(window.devicePixelRatio || 1, 2),
       );
-      renderer.shadowMap.enabled = !this.isSoftwareGl;
+      renderer.shadowMap.enabled = !lowPower;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.domElement.className = 'lobby-3d-canvas';
       renderer.domElement.setAttribute('aria-label', '3D Survivor Aarav at Thakur Haveli');
@@ -118,6 +124,11 @@ export class HorrorLobbyScene3D {
         this.stopLoop();
       });
       renderer.domElement.addEventListener('webglcontextrestored', () => {
+        renderer.setClearColor(0x05070d, 1);
+        renderer.toneMappingExposure = Math.min(
+          1.15,
+          renderer.toneMappingExposure || 1.15,
+        );
         if (this.isActive) this.startLoop();
       });
 
@@ -135,7 +146,7 @@ export class HorrorLobbyScene3D {
 
     const keyLight = new THREE.DirectionalLight(0xffcf96, 1.35);
     keyLight.position.set(2.8, 4.4, 3.6);
-    if (!this.isSoftwareGl) {
+    if (!this.isSoftwareGl && !this.isMobileDevice) {
       keyLight.castShadow = true;
       keyLight.shadow.mapSize.set(1024, 1024);
       keyLight.shadow.bias = -0.0005;
@@ -609,7 +620,8 @@ export class HorrorLobbyScene3D {
   ) {
     if (!this.renderer) return;
     const dpr = window.devicePixelRatio || 1;
-    if (quality === 'low') {
+    const forceLow = this.isMobileDevice || quality === 'low';
+    if (forceLow) {
       this.renderer.setPixelRatio(1.0);
       this.renderer.shadowMap.enabled = false;
     } else if (quality === 'medium') {
@@ -623,7 +635,7 @@ export class HorrorLobbyScene3D {
     }
     this.renderer.shadowMap.needsUpdate = true;
     if (this.rainLines && this.totalRainVertices > 0) {
-      const ratio = quality === 'low' ? 0.35 : quality === 'medium' ? 0.7 : 1.0;
+      const ratio = forceLow ? 0.35 : quality === 'medium' ? 0.7 : 1.0;
       const drawCount = Math.max(
         20,
         Math.floor((this.totalRainVertices * ratio) / 2) * 2,
@@ -636,7 +648,7 @@ export class HorrorLobbyScene3D {
   public setBrightness(brightnessPercent: number) {
     if (!this.renderer) return;
     const clamped = Math.max(80, Math.min(150, brightnessPercent));
-    this.renderer.toneMappingExposure = 1.15 * (clamped / 100);
+    this.renderer.toneMappingExposure = Math.min(1.15, 1.15 * (clamped / 100));
   }
 
   public setTargetFps(fps: number) {
@@ -806,8 +818,31 @@ export class HorrorLobbyScene3D {
     window.removeEventListener('pointermove', this.boundPointerMove);
     window.removeEventListener('pointerup', this.boundPointerUp);
     window.removeEventListener('pointercancel', this.boundPointerUp);
+    this.lanternLights = [];
+    this.flashlightSpot = null;
+    this.aarav = null;
+    this.scene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.geometry && typeof mesh.geometry.dispose === 'function') {
+        mesh.geometry.dispose();
+      }
+      const mat = mesh.material;
+      if (Array.isArray(mat)) {
+        for (const m of mat) {
+          m?.dispose?.();
+        }
+      } else if (mat && typeof mat.dispose === 'function') {
+        mat.dispose();
+      }
+    });
+    this.scene.clear();
     if (this.renderer) {
       this.renderer.domElement.removeEventListener('pointerdown', this.boundPointerDown);
+      try {
+        this.renderer.forceContextLoss();
+      } catch {
+        // Ignore context loss errors on restricted browsers
+      }
       this.renderer.dispose();
       this.renderer.domElement.remove();
       this.renderer = null;

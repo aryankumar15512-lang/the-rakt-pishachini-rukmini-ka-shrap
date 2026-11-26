@@ -128,7 +128,7 @@ export interface HauntedMirrorInstance {
   group: THREE.Group;
   reflectionGroup: THREE.Group;
   reflectionOverlayMat: THREE.MeshBasicMaterial;
-  scareLight: THREE.PointLight;
+  scareLight: THREE.PointLight | null;
   position: THREE.Vector3;
   normal: THREE.Vector3;
   floorY: number;
@@ -151,7 +151,7 @@ export interface MansionBuildResult {
   root: THREE.Group;
   wellGroup: THREE.Group;
   centralCourtyardWell: THREE.Group;
-  wellFireLight: THREE.PointLight;
+  wellFireLight: THREE.PointLight | null;
   wellInnerFlames: THREE.Mesh[];
   wellSmokeParticles: THREE.Mesh[];
   lanterns: THREE.Group[];
@@ -168,7 +168,7 @@ export interface MansionBuildResult {
   nurseryCradle: THREE.Group | null;
   dustPoints: THREE.Points;
   dripParticles: THREE.Mesh[];
-  lightningLight: THREE.DirectionalLight;
+  lightningLight: THREE.DirectionalLight | null;
   guardhouseGroup: THREE.Group;
   mansionKeyGroup: THREE.Group;
   wellCourtyardKeyGroup: THREE.Group;
@@ -178,6 +178,7 @@ export interface MansionBuildResult {
   setBloodHandprintsVisible: (visible: boolean) => void;
   setSunriseProgress: (progress: number) => void;
   setWeatherQuality: (quality: WeatherGraphicsQuality) => void;
+  setLightBudgetMode: (minimal: boolean) => void;
   isPlayerOutdoors: (playerLocalPos: THREE.Vector3) => boolean;
   sampleRainAcoustics: (
     playerLocalPos: THREE.Vector3,
@@ -763,7 +764,10 @@ export function mapRoomPropXZ(
 // MAIN MULTI-FLOOR THAKUR HAVELI BUILDER
 // ============================================================================
 
-export function buildThakurHaveli(): MansionBuildResult {
+export function buildThakurHaveli(buildOptions?: {
+  disableExtraLights?: boolean;
+}): MansionBuildResult {
+  const disableExtraLights = Boolean(buildOptions?.disableExtraLights);
   const root = new THREE.Group();
   root.name = 'ThakurHaveliRoot';
 
@@ -783,6 +787,10 @@ export function buildThakurHaveli(): MansionBuildResult {
   const watchingEyes: THREE.Mesh[] = [];
   const dripParticles: THREE.Mesh[] = [];
   const windowLightningMats: THREE.MeshBasicMaterial[] = [];
+  const decorativeDynamicLights: THREE.Light[] = [];
+  const _flWorldPos = new THREE.Vector3();
+  const _rootWorldPos = new THREE.Vector3();
+  let lowLightBudgetMode = false;
   const stormWeather = new StormWeatherSystem(root);
   let currentSunriseProgress = 0;
 
@@ -2716,7 +2724,7 @@ export function buildThakurHaveli(): MansionBuildResult {
     cageGroup.add(flame);
 
     let ptLight: THREE.PointLight | undefined;
-    if (attachPointLight) {
+    if (attachPointLight && !disableExtraLights) {
       ptLight = new THREE.PointLight(0xffaa44, intensity, distance, 1.4);
       ptLight.position.set(0, -0.02, 0.08);
       cageGroup.add(ptLight);
@@ -3496,7 +3504,7 @@ export function buildThakurHaveli(): MansionBuildResult {
 
       // Add warm flickering point lights on alternating pairs to bathe the 24m forecourt in royal torchlight
       let mLight: THREE.PointLight | undefined;
-      if (mi === 0 || mi === 2 || (mi === 3 && side === 1)) {
+      if (!disableExtraLights && (mi === 0 || mi === 2 || (mi === 3 && side === 1))) {
         mLight = new THREE.PointLight(0xff8e36, 2.4, 15.5, 1.7);
         mLight.position.set(mx, 3.2, mz);
         root.add(mLight);
@@ -3853,8 +3861,13 @@ export function buildThakurHaveli(): MansionBuildResult {
   fountainSprayPoints.frustumCulled = false;
 
   // Soft moonlit aqua glow illuminating the flowing fountain water & spray at night
-  const fountainGlowLight = new THREE.PointLight(0x6ad6ff, 1.6, 10.5, 1.7);
-  fountainGlowLight.position.set(0, 2.35, 0);
+  let fountainGlowLight: THREE.PointLight | null = null;
+  if (!disableExtraLights) {
+    fountainGlowLight = new THREE.PointLight(0x6ad6ff, 1.6, 10.5, 1.7);
+    fountainGlowLight.position.set(0, 2.35, 0);
+    decorativeDynamicLights.push(fountainGlowLight);
+    fountainGroup.add(fountainGlowLight);
+  }
 
   fountainGroup.add(
     fOuterWall,
@@ -3871,7 +3884,6 @@ export function buildThakurHaveli(): MansionBuildResult {
     fUpperWaterPool,
     fCascadeVeil,
     fountainSprayPoints,
-    fountainGlowLight,
   );
   root.add(fountainGroup);
   wallColliders.push({
@@ -4310,7 +4322,7 @@ export function buildThakurHaveli(): MansionBuildResult {
     guardhouseGroup.add(diyaGroup);
 
     let dLight: THREE.PointLight | undefined;
-    if (hasLight) {
+    if (hasLight && !disableExtraLights) {
       dLight = new THREE.PointLight(0xffa63d, 3.6, 14.5, 1.6);
       dLight.position.set(13.2 + dx, dy + 0.55, 27.2 + dz);
       root.add(dLight);
@@ -4326,9 +4338,12 @@ export function buildThakurHaveli(): MansionBuildResult {
   });
 
   // Dedicated warm golden overhead temple light bathing the Shivling & front Key Pedestal
-  const templeKeySpotlight = new THREE.PointLight(0xffbd55, 3.8, 15.0, 1.5);
-  templeKeySpotlight.position.set(10.6, 2.75, 27.2);
-  root.add(templeKeySpotlight);
+  if (!disableExtraLights) {
+    const templeKeySpotlight = new THREE.PointLight(0xffbd55, 3.8, 15.0, 1.5);
+    templeKeySpotlight.position.set(10.6, 2.75, 27.2);
+    root.add(templeKeySpotlight);
+    decorativeDynamicLights.push(templeKeySpotlight);
+  }
 
   // 7) Carved Stone Offering Pedestal & Brass Thali RIGHT IN FRONT of the Shiva Temple for the Glowing Haveli Entrance Key
   const keyPedestalGroup = new THREE.Group();
@@ -6021,16 +6036,18 @@ export function buildThakurHaveli(): MansionBuildResult {
     });
 
     // Warm grand atrium chandelier illumination washing all 3 stories & the crimson carpet below
-    const chandMainLight = new THREE.PointLight(0xffbe68, 7.5, 62, 0.88);
-    chandMainLight.position.set(0, -1.2, 0);
-    chandGroup.add(chandMainLight);
-    flickeringLights.push({
-      light: chandMainLight,
-      baseIntensity: 7.5,
-      phase: 1.35,
-      flameMesh: undefined,
-      baseColor: 0xffbe68,
-    });
+    if (!disableExtraLights) {
+      const chandMainLight = new THREE.PointLight(0xffbe68, 7.5, 62, 0.88);
+      chandMainLight.position.set(0, -1.2, 0);
+      chandGroup.add(chandMainLight);
+      flickeringLights.push({
+        light: chandMainLight,
+        baseIntensity: 7.5,
+        phase: 1.35,
+        flameMesh: undefined,
+        baseColor: 0xffbe68,
+      });
+    }
 
     root.add(chandGroup);
   };
@@ -6046,6 +6063,7 @@ export function buildThakurHaveli(): MansionBuildResult {
     flickeringLights,
     swayingCurtains,
     watchingEyes,
+    disableExtraLights,
     materials: {
       carvedSandstoneMat,
       brassMat,
@@ -6717,9 +6735,12 @@ export function buildThakurHaveli(): MansionBuildResult {
     suvGroup.add(steeringWheel);
 
     // Faint warm interior dashboard PointLight softly illuminating the cabin through windshield & side glass
-    const cabinDashLight = new THREE.PointLight(0xff8c32, 0.95, 3.2, 1.8);
-    cabinDashLight.position.set(0.16, 1.32, -0.26);
-    suvGroup.add(cabinDashLight);
+    if (!disableExtraLights) {
+      const cabinDashLight = new THREE.PointLight(0xff8c32, 0.95, 3.2, 1.8);
+      cabinDashLight.position.set(0.16, 1.32, -0.26);
+      suvGroup.add(cabinDashLight);
+      decorativeDynamicLights.push(cabinDashLight);
+    }
 
     // Sculpted Left & Right Side Wing Mirrors
     [-1, 1].forEach((sideSign) => {
@@ -6889,12 +6910,15 @@ export function buildThakurHaveli(): MansionBuildResult {
       suvGroup.add(headLens);
 
       // Individual left/right halogen SpotLight beam casting realistic pools of light onto the road & iron gate
-      const headSpot = new THREE.SpotLight(0xfff2cc, 6.0, 28, 0.44, 0.72, 1.35);
-      headSpot.position.set(hx, 0.8, -2.3);
-      const headTarget = new THREE.Object3D();
-      headTarget.position.set(hx * 0.78 + 0.32, 0.55, -11.5);
-      suvGroup.add(headSpot, headTarget);
-      headSpot.target = headTarget;
+      if (!disableExtraLights) {
+        const headSpot = new THREE.SpotLight(0xfff2cc, 6.0, 28, 0.44, 0.72, 1.35);
+        headSpot.position.set(hx, 0.8, -2.3);
+        const headTarget = new THREE.Object3D();
+        headTarget.position.set(hx * 0.78 + 0.32, 0.55, -11.5);
+        suvGroup.add(headSpot, headTarget);
+        headSpot.target = headTarget;
+        decorativeDynamicLights.push(headSpot);
+      }
 
       const tailLens = new THREE.Mesh(
         new THREE.BoxGeometry(0.24, 0.2, 0.08),
@@ -6941,11 +6965,14 @@ export function buildThakurHaveli(): MansionBuildResult {
       suvHazardGlowMats.push(hSpriteMat);
     });
 
-    suvHazardFrontLight = new THREE.PointLight(0xff7b00, 0, 9.0, 1.5);
-    suvHazardFrontLight.position.set(0, 0.82, -2.6);
-    suvHazardRearLight = new THREE.PointLight(0xff7b00, 0, 9.0, 1.5);
-    suvHazardRearLight.position.set(0, 0.88, 2.6);
-    suvGroup.add(suvHazardFrontLight, suvHazardRearLight);
+    if (!disableExtraLights) {
+      suvHazardFrontLight = new THREE.PointLight(0xff7b00, 0, 9.0, 1.5);
+      suvHazardFrontLight.position.set(0, 0.82, -2.6);
+      suvHazardRearLight = new THREE.PointLight(0xff7b00, 0, 9.0, 1.5);
+      suvHazardRearLight.position.set(0, 0.88, 2.6);
+      suvGroup.add(suvHazardFrontLight, suvHazardRearLight);
+      decorativeDynamicLights.push(suvHazardFrontLight, suvHazardRearLight);
+    }
 
     // Soft, translucent, rising & smoothly fading steam/smoke Sprite particles from the popped engine bay
     const numSmokeSprites = 18;
@@ -7843,9 +7870,13 @@ export function buildThakurHaveli(): MansionBuildResult {
     const templeHalo = new THREE.Sprite(villageGlowSpriteMat);
     templeHalo.position.copy(templeDiya.position);
     templeHalo.scale.set(2.4, 2.4, 1);
-    const templeGlow = new THREE.PointLight(0xffb844, 2.4, 24, 1.4);
-    templeGlow.position.set(-2.4, 1.8, 0);
-    templeGroup.add(shikhara1, shikhara2, kalashTop, templeDiya, templeHalo, templeGlow);
+    let templeGlow: THREE.PointLight | undefined;
+    if (!disableExtraLights) {
+      templeGlow = new THREE.PointLight(0xffb844, 2.4, 24, 1.4);
+      templeGlow.position.set(-2.4, 1.8, 0);
+      templeGroup.add(templeGlow);
+    }
+    templeGroup.add(shikhara1, shikhara2, kalashTop, templeDiya, templeHalo);
 
     flickeringLights.push({
       light: templeGlow,
@@ -8582,9 +8613,12 @@ export function buildThakurHaveli(): MansionBuildResult {
     mirrorGroup.add(glassPane);
 
     // Cold crimson mirror flash point light (off unless reflection is active)
-    const scareLight = new THREE.PointLight(0xff2238, 0, 3.8, 2);
-    scareLight.position.set(0, 0.08, 0.48);
-    mirrorGroup.add(scareLight);
+    let scareLight: THREE.PointLight | null = null;
+    if (!disableExtraLights) {
+      scareLight = new THREE.PointLight(0xff2238, 0, 3.8, 2);
+      scareLight.position.set(0, 0.08, 0.48);
+      mirrorGroup.add(scareLight);
+    }
 
     root.add(mirrorGroup);
 
@@ -9988,6 +10022,7 @@ export function buildThakurHaveli(): MansionBuildResult {
     brassMat,
     copperMat,
     dripParticles,
+    disableExtraLights,
   });
 
   // (Room U7 obstructing central cylinder shaft & collider removed so U7 is completely open & cleanly navigable)
@@ -10729,9 +10764,12 @@ export function buildThakurHaveli(): MansionBuildResult {
   const wellInnerFlames: THREE.Mesh[] = [];
   const wellSmokeParticles: THREE.Mesh[] = [];
 
-  const wellFireLight = new THREE.PointLight(0xff5e1a, 3.4, 24, 1.45);
-  wellFireLight.position.set(0, 2.35, 0);
-  wellGroup.add(wellFireLight);
+  let wellFireLight: THREE.PointLight | null = null;
+  if (!disableExtraLights) {
+    wellFireLight = new THREE.PointLight(0xff5e1a, 3.4, 24, 1.45);
+    wellFireLight.position.set(0, 2.35, 0);
+    wellGroup.add(wellFireLight);
+  }
 
   // Glowing Golden "Well Courtyard Key (कुएं के आंगन की चाबी)" resting visibly on the North stone rim of the Cursed Well
   // Shown whenever the player respawns alone in the Well Courtyard with the back door locked.
@@ -10800,9 +10838,13 @@ export function buildThakurHaveli(): MansionBuildResult {
   wkBit2.position.set(0.036, 0, 0.135);
   wellCourtyardKeyGroup.add(wkBit1, wkBit2);
 
-  const wkGlowLight = new THREE.PointLight(0xffcb45, 1.45, 6.2, 1.8);
-  wkGlowLight.position.set(0, 0.16, 0);
-  wellCourtyardKeyGroup.add(wkGlowLight);
+  let wkGlowLight: THREE.PointLight | null = null;
+  if (!disableExtraLights) {
+    wkGlowLight = new THREE.PointLight(0xffcb45, 1.45, 6.2, 1.8);
+    wkGlowLight.position.set(0, 0.16, 0);
+    wellCourtyardKeyGroup.add(wkGlowLight);
+    decorativeDynamicLights.push(wkGlowLight);
+  }
 
   const wellCourtyardKeyGlow = attachProximityGlow({
     group: wellCourtyardKeyGroup,
@@ -11222,7 +11264,7 @@ export function buildThakurHaveli(): MansionBuildResult {
     bulb.position.set(x, y, z);
     root.add(bulb);
 
-    if (attachPointLight) {
+    if (attachPointLight && !disableExtraLights) {
       // Soft antique warm-parchment fill so rooms remain moody & readable without washing out flickering mashals
       const ptLight = new THREE.PointLight(0xffe0b5, intensity, distance, 0.92);
       ptLight.position.set(x, y - 0.15, z);
@@ -11271,9 +11313,12 @@ export function buildThakurHaveli(): MansionBuildResult {
   addBrightCeilingLight(0, 5.8, 16.0, 3.4, 40, true);
   addBrightCeilingLight(0, 5.8, 28.0, 3.4, 40, true);
 
-  const lightningLight = new THREE.DirectionalLight(0xaaccff, 0.0);
-  lightningLight.position.set(16, 38, 28);
-  root.add(lightningLight);
+  let lightningLight: THREE.DirectionalLight | null = null;
+  if (!disableExtraLights) {
+    lightningLight = new THREE.DirectionalLight(0xaaccff, 0.0);
+    lightningLight.position.set(16, 38, 28);
+    root.add(lightningLight);
+  }
 
   // ==========================================================================
   // 7. LIGHTWEIGHT FLOATING DUST-MOTE PARTICLES (FLASHLIGHT-REACTIVE SHADER)
@@ -12436,19 +12481,35 @@ export function buildThakurHaveli(): MansionBuildResult {
     redLightningTimer = Math.max(redLightningTimer, duration);
   };
 
+  const setLightBudgetMode = (minimal: boolean) => {
+    lowLightBudgetMode = minimal;
+    for (let i = 0; i < decorativeDynamicLights.length; i++) {
+      decorativeDynamicLights[i].visible = !minimal;
+    }
+    if (minimal) {
+      for (const fl of flickeringLights) {
+        if (fl.light) {
+          fl.light.visible = false;
+        }
+      }
+    }
+  };
+
   const setLightLevelMultiplier = (multiplier: number) => {
     lightLevelMultiplier = Math.max(0, Math.min(1, multiplier));
     isBlackout = lightLevelMultiplier <= 0.02;
     for (const fl of flickeringLights) {
       if (fl.light) {
-        fl.light.visible = lightLevelMultiplier > 0.01;
+        fl.light.visible = !lowLightBudgetMode && lightLevelMultiplier > 0.01;
         fl.light.intensity = fl.baseIntensity * lightLevelMultiplier;
       }
       if (fl.flameMesh) {
         fl.flameMesh.visible = lightLevelMultiplier > 0.05;
       }
     }
-    wellFireLight.intensity = 3.4 * lightLevelMultiplier;
+    if (wellFireLight) {
+      wellFireLight.intensity = 3.4 * lightLevelMultiplier;
+    }
   };
 
   const setBlackoutMode = (active: boolean) => {
@@ -12491,7 +12552,9 @@ export function buildThakurHaveli(): MansionBuildResult {
       wellCourtyardKeyGroup.rotation.y = elapsed * 2.15;
       wellCourtyardKeyGroup.position.y =
         WELL_KEY_BASE_Y + Math.sin(elapsed * 2.8) * 0.055;
-      wkGlowLight.intensity = 1.15 + Math.sin(elapsed * 3.6) * 0.35;
+      if (wkGlowLight) {
+        wkGlowLight.intensity = 1.15 + Math.sin(elapsed * 3.6) * 0.35;
+      }
     }
     wellCourtyardKeyGlow.update(
       elapsed,
@@ -12574,8 +12637,35 @@ export function buildThakurHaveli(): MansionBuildResult {
     const flickerViolence = redFlickerActive
       ? 2.4 + (1 - witchDistToPlayer / 18.0) * 1.6
       : 1.0 + witchProximity * 0.5;
-    for (const fl of flickeringLights) {
-      if (fl.light) fl.light.visible = lightLevelMultiplier > 0.01;
+    let nearestIdx1 = -1;
+    let nearestDist1 = 196; // 14m^2
+    let nearestIdx2 = -1;
+    let nearestDist2 = 196;
+    if (lowLightBudgetMode && lightLevelMultiplier > 0.01) {
+      root.getWorldPosition(_rootWorldPos);
+      for (let li = 0; li < flickeringLights.length; li++) {
+        const l = flickeringLights[li].light;
+        if (!l) continue;
+        l.getWorldPosition(_flWorldPos).sub(_rootWorldPos);
+        const dSq = _flWorldPos.distanceToSquared(playerLocalPos);
+        if (dSq < nearestDist1) {
+          nearestDist2 = nearestDist1;
+          nearestIdx2 = nearestIdx1;
+          nearestDist1 = dSq;
+          nearestIdx1 = li;
+        } else if (dSq < nearestDist2) {
+          nearestDist2 = dSq;
+          nearestIdx2 = li;
+        }
+      }
+    }
+
+    for (let li = 0; li < flickeringLights.length; li++) {
+      const fl = flickeringLights[li];
+      const lightAllowed =
+        lightLevelMultiplier > 0.01 &&
+        (!lowLightBudgetMode || li === nearestIdx1 || li === nearestIdx2);
+      if (fl.light) fl.light.visible = lightAllowed;
       if (fl.flameMesh) fl.flameMesh.visible = lightLevelMultiplier > 0.05;
       // Organic multi-harmonic flame flicker (gentle draft sway + medium fire breath + delicate tip flutter)
       const slowDraft = Math.sin(elapsed * 2.15 + fl.phase);
@@ -12592,7 +12682,7 @@ export function buildThakurHaveli(): MansionBuildResult {
       const mul = redFlickerActive
         ? 0.35 + Math.abs(medBreath * tipFlutter) * 0.95
         : THREE.MathUtils.clamp(normalMul, 0.78, 1.12);
-      if (fl.light) {
+      if (fl.light && lightAllowed) {
         if (redFlickerActive) {
           fl.light.color.setHex(redFlickerPulse > 0.35 ? 0xff1111 : fl.baseColor);
           fl.light.intensity = fl.baseIntensity * mul * lightLevelMultiplier * 1.5;
@@ -12658,15 +12748,17 @@ export function buildThakurHaveli(): MansionBuildResult {
     pulleyWheel.rotation.z = Math.sin(elapsed * 0.85) * 0.06;
     // Preserve high-intensity relic-burn blaze flare (~11.0) and smoothly decay back to crackling firelight
     const targetWellLightIntensity = 3.5 * wellFlicker * Math.max(0.2, lightLevelMultiplier);
-    if (wellFireLight.intensity > targetWellLightIntensity + 0.65) {
-      wellFireLight.intensity = THREE.MathUtils.damp(
-        wellFireLight.intensity,
-        targetWellLightIntensity,
-        2.6,
-        dt,
-      );
-    } else {
-      wellFireLight.intensity = targetWellLightIntensity;
+    if (wellFireLight) {
+      if (wellFireLight.intensity > targetWellLightIntensity + 0.65) {
+        wellFireLight.intensity = THREE.MathUtils.damp(
+          wellFireLight.intensity,
+          targetWellLightIntensity,
+          2.6,
+          dt,
+        );
+      } else {
+        wellFireLight.intensity = targetWellLightIntensity;
+      }
     }
 
     // 2B. Slowly drift the 3D moonlit storm clouds & midnight sky dome overhead
@@ -12701,7 +12793,9 @@ export function buildThakurHaveli(): MansionBuildResult {
     fountainWaterTex.center.set(0.5, 0.5);
     fountainWaterMat.emissiveIntensity = 0.48 + Math.sin(elapsed * 2.6) * 0.1;
     fountainVeilMat.opacity = 0.23 + Math.sin(elapsed * 4.2) * 0.05;
-    fountainGlowLight.intensity = 1.45 + Math.sin(elapsed * 3.3) * 0.22;
+    if (fountainGlowLight) {
+      fountainGlowLight.intensity = 1.45 + Math.sin(elapsed * 3.3) * 0.22;
+    }
     for (let ri = 0; ri < fountainRippleRings.length; ri++) {
       const rp = (elapsed * 0.55 + ri / fountainRippleRings.length) % 1;
       const ring = fountainRippleRings[ri];
@@ -12880,6 +12974,7 @@ export function buildThakurHaveli(): MansionBuildResult {
     }
 
     // 7. Storm Double-Flash Lightning (8-18s natural strikes) + Red Curse Lightning Flashes on Relic Burn
+    // Capped cleanly at <= 2.2 intensity and reset immediately so mobile WebGL never washes out white.
     let flashFactor = 0;
     if (redLightningTimer > 0) {
       redLightningTimer = Math.max(0, redLightningTimer - dt);
@@ -12887,23 +12982,27 @@ export function buildThakurHaveli(): MansionBuildResult {
       const redStrike =
         Math.sin(redLightningTimer * 38) > -0.15 ? 1.0 : 0.35;
       const redFlash = redEnv * redStrike;
-      lightningLight.color.setHex(0xff1420);
-      lightningLight.intensity = redFlash * 6.5;
+      if (lightningLight) {
+        lightningLight.color.setHex(0xff1420);
+        lightningLight.intensity = Math.min(2.2, redFlash * 2.2);
+      }
       flashFactor = Math.max(flashFactor, redFlash);
     } else if (storm.lightningFlash > 0.005) {
       flashFactor = storm.lightningFlash;
-      const strikeDist = 42;
-      lightningLight.position.set(
-        Math.cos(storm.strikeAzimuth) * strikeDist,
-        40,
-        Math.sin(storm.strikeAzimuth) * strikeDist,
-      );
-      lightningLight.color.setHex(0xd6ebff);
-      const dirScale = storm.isBasement ? 0.15 : storm.isOutdoors ? 5.2 : 1.75;
-      lightningLight.intensity = isBlackout
-        ? flashFactor * 0.45
-        : flashFactor * dirScale;
-    } else {
+      if (lightningLight) {
+        const strikeDist = 42;
+        lightningLight.position.set(
+          Math.cos(storm.strikeAzimuth) * strikeDist,
+          40,
+          Math.sin(storm.strikeAzimuth) * strikeDist,
+        );
+        lightningLight.color.setHex(0xd6ebff);
+        const dirScale = storm.isBasement ? 0.12 : storm.isOutdoors ? 2.2 : 1.15;
+        lightningLight.intensity = isBlackout
+          ? Math.min(2.2, flashFactor * 0.45)
+          : Math.min(2.2, flashFactor * dirScale);
+      }
+    } else if (lightningLight) {
       lightningLight.color.setHex(0xd6ebff);
       lightningLight.intensity = 0;
     }
@@ -12911,9 +13010,9 @@ export function buildThakurHaveli(): MansionBuildResult {
     // Shine lightning briefly through interior Haveli Jali windows
     const winFlashOpacity =
       !isBlackout && redLightningTimer <= 0 && storm.lightningFlash > 0.01
-        ? storm.lightningFlash * 0.56
+        ? Math.min(0.36, storm.lightningFlash * 0.36)
         : redLightningTimer > 0
-          ? flashFactor * 0.45
+          ? Math.min(0.34, flashFactor * 0.34)
           : 0;
     const winFlashHex = redLightningTimer > 0 ? 0xff4048 : 0xcce6ff;
     for (let i = 0; i < windowLightningMats.length; i++) {
@@ -12954,8 +13053,10 @@ export function buildThakurHaveli(): MansionBuildResult {
     triggerRedLightningFlash,
     setBloodHandprintsVisible,
     setSunriseProgress,
+    setLightBudgetMode,
     setWeatherQuality: (quality: WeatherGraphicsQuality) => {
       stormWeather.setQuality(quality);
+      setLightBudgetMode(quality === 'low');
     },
     isPlayerOutdoors: (playerLocalPos: THREE.Vector3) =>
       stormWeather.isPlayerOutdoors(playerLocalPos),
@@ -13327,7 +13428,9 @@ export function createCursedRelics(parent: THREE.Object3D): RelicInstance[] {
  * Built with 3D humanoid hierarchy (long black hair over face, tattered crimson bridal saree with
  * gold border, glowing red eyes, silver anklets, and backward-turned feet — zero cones).
  */
-export function buildRukminiWitchModel(): {
+export function buildRukminiWitchModel(options?: {
+  disableLights?: boolean;
+}): {
   root: THREE.Group;
   headGroup: THREE.Group;
   leftArm: THREE.Group;
@@ -13335,17 +13438,20 @@ export function buildRukminiWitchModel(): {
   veilMesh: THREE.Mesh;
   leftEye?: THREE.Mesh;
   rightEye?: THREE.Mesh;
-  eyeCrimsonLight: THREE.PointLight;
+  eyeCrimsonLight: THREE.PointLight | null;
   character: HumanoidCharacter;
 } {
-  const rukminiChar = createRukmini();
+  const rukminiChar = createRukmini(options);
   CharacterGLBManager.register('kallu', rukminiChar);
 
   // Subtle short-range dim crimson face-light slightly in front of her face so her gaunt veins,
   // sunken sockets, smudged bindi & half-open mouth remain clearly visible in dark corridors
-  const eyeCrimsonLight = new THREE.PointLight(0xff2222, 0.9, 4);
-  eyeCrimsonLight.position.set(0, 0.015, 0.36);
-  rukminiChar.headGroup.add(eyeCrimsonLight);
+  let eyeCrimsonLight: THREE.PointLight | null = null;
+  if (!options?.disableLights) {
+    eyeCrimsonLight = new THREE.PointLight(0xff2222, 0.9, 4);
+    eyeCrimsonLight.position.set(0, 0.015, 0.36);
+    rukminiChar.headGroup.add(eyeCrimsonLight);
+  }
 
   const veilMesh =
     (rukminiChar.veilMesh as THREE.Mesh) ||

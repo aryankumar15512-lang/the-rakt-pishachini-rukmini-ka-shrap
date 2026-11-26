@@ -1,15 +1,11 @@
-const CACHE_NAME = 'rakt-pishachini-pwa-v1';
+const CACHE_NAME = 'rakt-pishachini-pwa-v3';
 
 const PRECACHE_URLS = [
   './',
   './index.html',
   './manifest.json',
-  './icon.svg',
-  './apple-touch-icon.png',
+  '/app-icon-512.png',
   './haveli-menu-bg.jpg',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-maskable-512.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -59,8 +55,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Navigation requests: Network-first with offline index.html fallback
-  if (request.mode === 'navigate') {
+  // Navigation requests & JS/CSS code bundles: Network-first with cache fallback
+  const isCodeAsset =
+    request.mode === 'navigate' ||
+    request.destination === 'script' ||
+    request.destination === 'style' ||
+    /\.(js|mjs|css|html)$/i.test(url.pathname);
+
+  if (isCodeAsset && url.origin === self.location.origin) {
     event.respondWith(
       fetch(request)
         .then((response) => {
@@ -76,8 +78,9 @@ self.addEventListener('fetch', (event) => {
         .catch(async () => {
           const cached =
             (await caches.match(request)) ||
-            (await caches.match('./index.html')) ||
-            (await caches.match('./'));
+            (request.mode === 'navigate'
+              ? (await caches.match('./index.html')) || (await caches.match('./'))
+              : undefined);
           return (
             cached ||
             new Response('Offline - Please reconnect to load The Rakt Pishachini.', {
@@ -90,7 +93,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin static assets & Google Fonts: Stale-while-revalidate
+  // Same-origin media/images & Google Fonts: Stale-while-revalidate
   const isSameOrigin = url.origin === self.location.origin;
   const isFontHost =
     url.hostname === 'fonts.googleapis.com' ||

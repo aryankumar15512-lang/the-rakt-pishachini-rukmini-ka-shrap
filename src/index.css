@@ -8,7 +8,8 @@ body {
   padding: 0;
   overflow: hidden;
   font-family: 'Google Sans', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: #050204;
+  background: #05070d !important;
+  background-color: #05070d !important;
   color: #fff;
   line-height: 1.5;
   touch-action: none;
@@ -20,11 +21,85 @@ body {
 }
 
 canvas {
+  background: #05070d !important;
+  background-color: #05070d !important;
+  filter: none;
   touch-action: none !important;
   overscroll-behavior: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+}
+
+.game-canvas-host {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  background: #05070d !important;
+  background-color: #05070d !important;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.game-webgl-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #05070d !important;
+  background-color: #05070d !important;
+  filter: none;
+  touch-action: none !important;
+}
+
+.webgl-error-fallback {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #05070d !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+.webgl-error-card {
+  width: min(560px, 92vw);
+  background: #0b0d14;
+  border: 1.5px solid #dc2626;
+  border-radius: 12px;
+  padding: 20px 22px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.85);
+}
+
+.webgl-error-title {
+  color: #ff4d4d;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin-bottom: 12px;
+}
+
+.webgl-error-message {
+  margin: 0 0 16px 0;
+  padding: 12px;
+  background: #05070d;
+  border: 1px solid rgba(220, 38, 38, 0.45);
+  border-radius: 8px;
+  color: #fca5a5;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 45vh;
+  overflow: auto;
 }
 
 input,
@@ -37,6 +112,8 @@ select {
 
 #root {
   pointer-events: none;
+  background: #05070d !important;
+  background-color: #05070d !important;
 }
 
 .hidden {
@@ -203,12 +280,12 @@ h2.game-title {
   inset: 0;
   z-index: 34;
   pointer-events: none;
-  background: rgba(215, 235, 255, 0.75);
+  background: rgba(215, 235, 255, 0.18);
   opacity: 0;
 }
 
 .options-lightning-flash.flash-active {
-  animation: vnFlashBurst 0.36s ease-out forwards;
+  animation: vnFlashBurst 0.15s ease-out forwards;
 }
 
 .modal h2 {
@@ -430,18 +507,18 @@ h2.game-title {
 }
 
 .vn-lightning-flash.flash-active {
-  animation: vnFlashBurst 0.42s ease-out forwards;
+  animation: vnFlashBurst 0.15s ease-out forwards;
 }
 
 @keyframes vnFlashBurst {
   0% {
-    opacity: 0.95;
+    opacity: 0.18;
   }
   35% {
-    opacity: 0.25;
+    opacity: 0.06;
   }
   65% {
-    opacity: 0.75;
+    opacity: 0.15;
   }
   100% {
     opacity: 0;
@@ -1125,6 +1202,21 @@ h2.game-title {
   align-items: center;
   gap: 8px;
   pointer-events: none;
+}
+
+.hud-build-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(226, 232, 240, 0.56);
+  background: rgba(5, 7, 13, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  padding: 2px 6px;
+  line-height: 1.2;
+  pointer-events: none;
+  user-select: none;
 }
 
 .hud-map-icon-btn {
@@ -3380,16 +3472,15 @@ body.touch-device:not(.controls-mode-pc) .pc-pointer-lock-prompt,
   inset: 0;
   z-index: 94;
   pointer-events: none;
-  opacity: var(--red-lightning-opacity, 0);
+  opacity: min(0.18, var(--red-lightning-opacity, 0));
   background:
     radial-gradient(
       circle at 50% 35%,
-      rgba(255, 110, 120, 0.42) 0%,
-      rgba(220, 20, 38, 0.62) 48%,
-      rgba(95, 4, 16, 0.88) 100%
+      rgba(255, 110, 120, 0.25) 0%,
+      rgba(220, 20, 38, 0.35) 48%,
+      rgba(95, 4, 16, 0.5) 100%
     );
-  mix-blend-mode: screen;
-  box-shadow: inset 0 0 110px rgba(255, 30, 50, 0.9);
+  box-shadow: inset 0 0 110px rgba(255, 30, 50, 0.45);
   transition: opacity 0.05s linear;
 }
 

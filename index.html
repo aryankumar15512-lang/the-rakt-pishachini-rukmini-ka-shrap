@@ -20,13 +20,19 @@
     />
     <meta name="apple-mobile-web-app-title" content="Rakt Pishachini" />
     <link rel="manifest" href="./manifest.json" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="apple-touch-icon" href="/app-icon-512.png" />
+    <link rel="icon" type="image/png" href="/app-icon-512.png" />
     <link
       rel="icon"
       type="image/png"
       sizes="192x192"
-      href="./icons/icon-192.png"
+      href="/app-icon-512.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="512x512"
+      href="/app-icon-512.png"
     />
     <meta
       property="og:title"
@@ -48,6 +54,20 @@
   </head>
   <body>
     <div id="root"></div>
+
+    <!-- Dedicated dark-backed 3D Gameplay WebGL Canvas Container -->
+    <div id="game-canvas-host" class="game-canvas-host" aria-hidden="true">
+      <canvas id="game-webgl-canvas" class="game-webgl-canvas"></canvas>
+    </div>
+
+    <!-- Dark WebGL Failure Fallback Screen (never shows blank white screen) -->
+    <div id="webgl-error-fallback" class="webgl-error-fallback hidden" role="alert" aria-live="assertive">
+      <div class="webgl-error-card">
+        <div class="webgl-error-title">3D WEBGL INITIALIZATION ERROR (v1.0.2)</div>
+        <pre id="webgl-error-message" class="webgl-error-message"></pre>
+        <button id="webgl-error-reload-btn" type="button" class="btn">Reload Game</button>
+      </div>
+    </div>
 
     <!-- First Person Player Hand visible on screen during gameplay -->
     <div id="player-hand-view" class="player-hand hidden" aria-hidden="true"></div>
@@ -1491,6 +1511,8 @@
             </div>
           </div>
 
+          <span id="hud-build-tag" class="hud-build-tag" aria-label="Build version">v1.0.2</span>
+
           <!-- Hidden compatibility inventory strip (live items now shown cleanly inside Backpack drawer) -->
           <div
             id="hud-inventory-strip"
@@ -2012,14 +2034,14 @@
                   id="pro-brightness-slider"
                   class="ig-range-slider"
                   min="80"
-                  max="150"
+                  max="130"
                   step="1"
                   value="100"
                 />
                 <div class="pro-slider-scale">
                   <span>80% (Darker)</span>
                   <span>100% (Default)</span>
-                  <span>150% (Brighter)</span>
+                  <span>130% (Brighter)</span>
                 </div>
               </div>
 

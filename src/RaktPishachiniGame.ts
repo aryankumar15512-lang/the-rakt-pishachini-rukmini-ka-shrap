@@ -66,11 +66,11 @@ const _calmFlashlightColor = new THREE.Color(0xffffff);
 const _dreadFlashlightColor = new THREE.Color(0xfff4e0);
 const _targetColor = new THREE.Color();
 const _brightSkyColor = new THREE.Color(0x6b82a8);
-const _storyNightSkyColor = new THREE.Color(0x060b16);
+const _storyNightSkyColor = new THREE.Color(0x05070d);
 const _storyFlashbackSkyColor = new THREE.Color(0x1e1309);
-const _storyLightningSkyColor = new THREE.Color(0x4b638a);
+const _storyLightningSkyColor = new THREE.Color(0x162238);
 const _stormLightningTint = new THREE.Color(0xd8ecff);
-const _activeStormSkyColor = new THREE.Color(0x060b16);
+const _activeStormSkyColor = new THREE.Color(0x05070d);
 const _storyLerpCamPos = new THREE.Vector3();
 const _storyLerpLookPos = new THREE.Vector3();
 const _dawnPreColor = new THREE.Color(0x4b314e);
@@ -80,7 +80,7 @@ const _dawnLightColor = new THREE.Color(0xffcb88);
 const _dawnHemiSkyColor = new THREE.Color(0xffe1b8);
 const _dawnHemiGroundColor = new THREE.Color(0x8c7056);
 const _dawnActiveSkyColor = new THREE.Color(0x6b82a8);
-const _nightHorizonFog = new THREE.FogExp2(0x060b16, 0.0105);
+const _nightHorizonFog = new THREE.FogExp2(0x05070d, 0.0105);
 
 // Exterior spawn: right beside the broken-down SUV on the Kali Ghati forest road (24m Forecourt + Outer Gate at z=34.0)
 const EXTERIOR_SPAWN_LOCAL_X = 1.35;
@@ -284,7 +284,7 @@ export class RaktPishachiniGame extends xb.Script {
     shards: Array<{ mesh: THREE.Mesh; vel: THREE.Vector3; floorY: number }>;
     waveRing1: THREE.Mesh;
     waveRing2: THREE.Mesh;
-    flashLight: THREE.PointLight;
+    flashLight: THREE.PointLight | null;
     age: number;
     maxAge: number;
   }> = [];
@@ -323,7 +323,7 @@ export class RaktPishachiniGame extends xb.Script {
       targetOffset: THREE.Vector3;
       launched: boolean;
     }>;
-    flashLight: THREE.PointLight;
+    flashLight: THREE.PointLight | null;
     targetCenter: THREE.Vector3;
     age: number;
     maxAge: number;
@@ -469,7 +469,12 @@ export class RaktPishachiniGame extends xb.Script {
   public isHudLayoutEditorOpen = false;
   public autoSprintActive = false;
   public cameraSensitivity = 1.0;
-  public graphicsQuality: 'low' | 'medium' | 'high' | 'ultra' = 'high';
+  public graphicsQuality: 'low' | 'medium' | 'high' | 'ultra' =
+    typeof navigator !== 'undefined' &&
+    (/Android|iPhone|iPad/i.test(navigator.userAgent) ||
+      (typeof window !== 'undefined' && window.innerWidth < 950))
+      ? 'low'
+      : 'high';
   public moveInput = {
     forward: false,
     backward: false,
@@ -523,6 +528,13 @@ export class RaktPishachiniGame extends xb.Script {
     return (
       document.body.classList.contains('touch-device') ||
       window.matchMedia('(hover: none) and (pointer: coarse)').matches
+    );
+  }
+
+  public isMobileDevice(): boolean {
+    return (
+      /Android|iPhone|iPad/i.test(navigator.userAgent) ||
+      window.innerWidth < 950
     );
   }
 
@@ -833,14 +845,35 @@ export class RaktPishachiniGame extends xb.Script {
   private setupLightingAndEnvironment() {
     const renderer = xb.core.renderer;
     const scene = xb.core.scene;
+    const isMobile = this.isMobileDevice();
+    const isSmoothOrMobile = this.graphicsQuality === 'low' || isMobile;
 
     if (renderer instanceof THREE.WebGLRenderer && scene) {
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.25;
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMappingExposure = Math.min(
+        1.15,
+        1.15 * (this.brightnessPercent / 100),
+      );
+      renderer.setClearColor(0x05070d, 1);
+      if (isSmoothOrMobile) {
+        renderer.setPixelRatio(1);
+        renderer.shadowMap.enabled = false;
+      } else {
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+        renderer.shadowMap.enabled = this.shadowsEnabled;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      }
       scene.environment = null;
+
+      // Remove any unexpected default Three.js lights added to scene so mobile keeps <= 3 lights total
+      if (isMobile) {
+        for (let i = scene.children.length - 1; i >= 0; i--) {
+          if ((scene.children[i] as THREE.Light).isLight) {
+            scene.remove(scene.children[i]);
+          }
+        }
+      }
 
       // Guard renderer.render against lost WebGL contexts (prevents THREE.WebGLProgram VALIDATE_STATUS false / Error 1282 spam)
       // and skip redundant main-scene renders while the fullscreen Menu Lobby / Launch overlay is active
@@ -857,6 +890,16 @@ export class RaktPishachiniGame extends xb.Script {
         });
         renderer.domElement?.addEventListener('webglcontextrestored', () => {
           contextLost = false;
+          renderer.setClearColor(0x05070d, 1);
+          renderer.toneMappingExposure = Math.min(
+            1.15,
+            1.15 * (this.brightnessPercent / 100),
+          );
+          this.applyGraphicsSettings(
+            this.graphicsQuality,
+            this.targetFps,
+            this.shadowsEnabled,
+          );
         });
         renderer.render = ((renderScene: THREE.Object3D, renderCamera: THREE.Camera) => {
           if (contextLost || renderer.getContext().isContextLost()) {
@@ -870,38 +913,57 @@ export class RaktPishachiniGame extends xb.Script {
       }
     }
 
-    // Soft exponential night fog matching the dark midnight sky horizon so the distant village
-    // silhouettes & terrain edges blend seamlessly into the night sky while keeping close rooms clear
+    // Soft exponential night fog matching the dark midnight sky horizon (#05070d)
     if (scene) {
       scene.background = _storyNightSkyColor;
-      _nightHorizonFog.color.copy(_storyNightSkyColor);
-      _nightHorizonFog.density = 0.0105;
+      _nightHorizonFog.color.setHex(0x05070d);
+      _nightHorizonFog.density = isMobile
+        ? 0.042
+        : isSmoothOrMobile
+          ? 0.028
+          : 0.0105;
       scene.fog = _nightHorizonFog;
     }
 
-    // Balanced moonlit nighttime lighting so the Haveli, trees & characters stay readable while
-    // allowing the flashlight SpotLight beam, SUV hazard lights, and brass lanterns to shine vividly
-    this.ambientLight = new THREE.AmbientLight(0xa4bad8, 0.72);
-    this.add(this.ambientLight);
+    // On mobile GPUs (Adreno/Mali), strictly cap total scene lights to AT MOST 3
+    // (1 AmbientLight + 1 Moonlight DirectionalLight + 1 player Flashlight SpotLight)
+    // to prevent MeshStandardMaterial shader compilation failures / white canvas.
+    if (isMobile) {
+      this.ambientLight = new THREE.AmbientLight(0x1a2035, 0.35);
+      this.add(this.ambientLight);
 
-    this.hemiLight = new THREE.HemisphereLight(0xb4ccf0, 0x3b332d, 0.82);
-    this.hemiLight.position.set(0, 35, 0);
-    this.add(this.hemiLight);
+      this.hemiLight = undefined;
 
-    // Silvery Purnima moonlit directional key light + cool fill light
-    this.moonKeyLight = new THREE.DirectionalLight(0xdce8ff, 0.92);
-    this.moonKeyLight.position.set(-22, 38, -42);
-    this.moonKeyLight.castShadow = true;
-    this.moonKeyLight.shadow.mapSize.set(1024, 1024);
-    this.moonKeyLight.shadow.bias = -0.0005;
-    this.moonKeyLight.shadow.normalBias = 0.02;
-    this.add(this.moonKeyLight);
+      this.moonKeyLight = new THREE.DirectionalLight(0x6688cc, 0.45);
+      this.moonKeyLight.position.set(-22, 38, -42);
+      this.moonKeyLight.castShadow = false;
+      this.add(this.moonKeyLight);
 
-    this.oppositeDirLight = new THREE.DirectionalLight(0x8ca4c8, 0.55);
-    this.oppositeDirLight.position.set(18, 28, 26);
-    this.add(this.oppositeDirLight);
+      this.oppositeDirLight = undefined;
+    } else {
+      this.ambientLight = new THREE.AmbientLight(0xa4bad8, 0.72);
+      this.add(this.ambientLight);
 
-    // Prevent camera clipping inside walls and ensure distant village vista & sky dome stay visible
+      this.hemiLight = new THREE.HemisphereLight(0xb4ccf0, 0x3b332d, 0.82);
+      this.hemiLight.position.set(0, 35, 0);
+      this.add(this.hemiLight);
+
+      // Silvery Purnima moonlit directional key light + cool fill light
+      this.moonKeyLight = new THREE.DirectionalLight(0xdce8ff, 0.92);
+      this.moonKeyLight.position.set(-22, 38, -42);
+      this.moonKeyLight.castShadow = !isSmoothOrMobile && this.shadowsEnabled;
+      this.moonKeyLight.shadow.mapSize.set(1024, 1024);
+      this.moonKeyLight.shadow.bias = -0.0005;
+      this.moonKeyLight.shadow.normalBias = 0.02;
+      this.add(this.moonKeyLight);
+
+      this.oppositeDirLight = new THREE.DirectionalLight(0x8ca4c8, 0.55);
+      this.oppositeDirLight.position.set(18, 28, 26);
+      this.oppositeDirLight.visible = !isSmoothOrMobile;
+      this.add(this.oppositeDirLight);
+    }
+
+    // Cap far plane to 65 on mobile/SMOOTH so phone doesn't render all 32 rooms at once
     const cam = xb.core.camera as THREE.PerspectiveCamera | undefined;
     if (cam) {
       cam.rotation.order = 'YXZ';
@@ -910,8 +972,9 @@ export class RaktPishachiniGame extends xb.Script {
         cam.near = 0.1;
         projDirty = true;
       }
-      if (cam.far < 280) {
-        cam.far = 280;
+      const targetFar = isSmoothOrMobile ? 65 : 280;
+      if (cam.far !== targetFar) {
+        cam.far = targetFar;
         projDirty = true;
       }
       if (projDirty) {
@@ -919,7 +982,7 @@ export class RaktPishachiniGame extends xb.Script {
       }
     }
 
-    // Real working bright circular THREE.SpotLight flashlight beam (intensity 3.5, distance 32, angle 0.45, penumbra 0.55)
+    // Real working bright circular THREE.SpotLight flashlight beam (light #3 of 3 on mobile)
     this.flashlight = new THREE.SpotLight(
       0xfff6e5,
       3.5,
@@ -928,15 +991,18 @@ export class RaktPishachiniGame extends xb.Script {
       0.55,
       0.15,
     );
-    this.flashlight.castShadow = true;
-    this.flashlight.shadow.mapSize.set(1024, 1024);
-    this.flashlight.shadow.camera.near = 0.25;
-    this.flashlight.shadow.camera.far = 32;
-    this.flashlight.shadow.bias = -0.0004;
-    this.flashlight.shadow.normalBias = 0.02;
+    this.flashlight.castShadow = !isSmoothOrMobile && this.shadowsEnabled;
+    if (!isMobile) {
+      this.flashlight.shadow.mapSize.set(1024, 1024);
+      this.flashlight.shadow.camera.near = 0.25;
+      this.flashlight.shadow.camera.far = 32;
+      this.flashlight.shadow.bias = -0.0004;
+      this.flashlight.shadow.normalBias = 0.02;
+    }
     this.add(this.flashlight);
     this.add(this.flashlightTarget);
     this.flashlight.target = this.flashlightTarget;
+    this.syncViewportSize();
   }
 
   public difficulty: 'easy' | 'normal' | 'nightmare' = 'normal';
@@ -997,7 +1063,9 @@ export class RaktPishachiniGame extends xb.Script {
           mat.emissiveIntensity = eyeIntensity;
         }
       }
-      this.witchModel.eyeCrimsonLight.intensity = isFinalRage ? 3.2 : 0.0;
+      if (this.witchModel.eyeCrimsonLight) {
+        this.witchModel.eyeCrimsonLight.intensity = isFinalRage ? 3.2 : 0.0;
+      }
     }
 
     if (this.burnedCount >= 3) {
@@ -1012,7 +1080,9 @@ export class RaktPishachiniGame extends xb.Script {
         this.witchBanishTimer = 0;
         if (this.witchModel) {
           this.witchModel.root.visible = false;
-          this.witchModel.eyeCrimsonLight.intensity = 0;
+          if (this.witchModel.eyeCrimsonLight) {
+            this.witchModel.eyeCrimsonLight.intensity = 0;
+          }
         }
         this.unlockMainHaveliDoorForEscape(true);
       } else if (!this.witchBanished) {
@@ -1241,7 +1311,9 @@ export class RaktPishachiniGame extends xb.Script {
     this.clearWitchBanishmentBeam();
 
     if (this.witchModel) {
-      this.witchModel.eyeCrimsonLight.intensity = 0;
+      if (this.witchModel.eyeCrimsonLight) {
+        this.witchModel.eyeCrimsonLight.intensity = 0;
+      }
       const beamGroup = new THREE.Group();
       beamGroup.position.copy(this.witchModel.root.position);
 
@@ -1285,10 +1357,14 @@ export class RaktPishachiniGame extends xb.Script {
       shockRing.rotation.x = -Math.PI / 2;
       shockRing.position.y = 0.08;
 
-      const beamLight = new THREE.PointLight(0xff1122, 11.0, 24, 1.2);
-      beamLight.position.set(0, 2.2, 0);
+      let beamLight: THREE.PointLight | undefined;
+      if (!this.isMobileDevice()) {
+        beamLight = new THREE.PointLight(0xff1122, 11.0, 24, 1.2);
+        beamLight.position.set(0, 2.2, 0);
+        beamGroup.add(beamLight);
+      }
 
-      beamGroup.add(innerBeam, outerBeam, shockRing, beamLight);
+      beamGroup.add(innerBeam, outerBeam, shockRing);
 
       const emberGeo = new THREE.OctahedronGeometry(0.06, 0);
       const emberMat = new THREE.MeshBasicMaterial({
@@ -1467,7 +1543,9 @@ export class RaktPishachiniGame extends xb.Script {
 
     if (this.witchModel) {
       this.witchModel.root.visible = false;
-      this.witchModel.eyeCrimsonLight.intensity = 0;
+      if (this.witchModel.eyeCrimsonLight) {
+        this.witchModel.eyeCrimsonLight.intensity = 0;
+      }
     }
     for (const tf of this.trappedFriends) {
       tf.character.root.visible = false;
@@ -1599,16 +1677,23 @@ export class RaktPishachiniGame extends xb.Script {
           ? 25
           : 32;
 
+    const isMobile = this.isMobileDevice();
+    const isSmoothOrMobile = this.graphicsQuality === 'low' || isMobile;
+
     if (this.ambientLight) {
       _targetColor
-        .setHex(0xa4bad8)
+        .setHex(isMobile ? 0x1a2035 : 0xa4bad8)
         .lerp(_dreadFlashlightColor, combinedRedMix * 0.78)
-        .lerp(_stormLightningTint, skyFlash * 0.85);
+        .lerp(_stormLightningTint, skyFlash * (isMobile ? 0.55 : 0.85));
       this.ambientLight.color.copy(_targetColor);
-      this.ambientLight.intensity =
-        0.72 * intensityDip * diffAtmosMul +
-        redFlashBoost * 0.85 +
-        skyFlash * 1.15;
+      this.ambientLight.intensity = isMobile
+        ? Math.min(0.75, 0.35 * intensityDip * diffAtmosMul + redFlashBoost * 0.18 + skyFlash * 0.28)
+        : Math.min(
+            1.25,
+            0.72 * intensityDip * diffAtmosMul +
+              redFlashBoost * 0.45 +
+              skyFlash * 0.55,
+          );
     }
 
     if (this.hemiLight) {
@@ -1618,48 +1703,67 @@ export class RaktPishachiniGame extends xb.Script {
         .lerp(_stormLightningTint, skyFlash * 0.9);
       this.hemiLight.color.copy(_targetColor);
       this.hemiLight.groundColor.setHex(0x3b332d);
-      this.hemiLight.intensity =
+      this.hemiLight.intensity = Math.min(
+        1.35,
         0.82 * intensityDip * diffAtmosMul +
-        redFlashBoost * 0.65 +
-        skyFlash * 1.35;
+          redFlashBoost * 0.4 +
+          skyFlash * 0.65,
+      );
     }
 
     if (this.moonKeyLight) {
       _targetColor
-        .setHex(0xdce8ff)
+        .setHex(isMobile ? 0x6688cc : 0xdce8ff)
         .lerp(_dreadFlashlightColor, combinedRedMix * 0.85)
-        .lerp(_stormLightningTint, skyFlash * 0.95);
+        .lerp(_stormLightningTint, skyFlash * (isMobile ? 0.65 : 0.95));
       this.moonKeyLight.color.copy(_targetColor);
-      this.moonKeyLight.intensity =
-        0.92 * intensityDip * diffAtmosMul +
-        redFlashBoost * 1.4 +
-        skyFlash * 2.4;
+      this.moonKeyLight.intensity = isMobile
+        ? Math.min(1.15, 0.45 * intensityDip * diffAtmosMul + redFlashBoost * 0.35 + skyFlash * 0.55)
+        : Math.min(
+            2.2,
+            0.92 * intensityDip * diffAtmosMul +
+              redFlashBoost * 0.85 +
+              skyFlash * 1.15,
+          );
     }
 
     if (this.oppositeDirLight) {
-      _targetColor
-        .setHex(0x8ca4c8)
-        .lerp(_dreadFlashlightColor, combinedRedMix * 0.8)
-        .lerp(_stormLightningTint, skyFlash * 0.85);
-      this.oppositeDirLight.color.copy(_targetColor);
-      this.oppositeDirLight.intensity =
-        0.55 * intensityDip * diffAtmosMul +
-        redFlashBoost * 0.9 +
-        skyFlash * 1.1;
+      this.oppositeDirLight.visible = !isSmoothOrMobile;
+      if (this.oppositeDirLight.visible) {
+        _targetColor
+          .setHex(0x8ca4c8)
+          .lerp(_dreadFlashlightColor, combinedRedMix * 0.8)
+          .lerp(_stormLightningTint, skyFlash * 0.85);
+        this.oppositeDirLight.color.copy(_targetColor);
+        this.oppositeDirLight.intensity = Math.min(
+          1.05,
+          0.55 * intensityDip * diffAtmosMul +
+            redFlashBoost * 0.45 +
+            skyFlash * 0.55,
+        );
+      }
     }
 
     const scene = xb.core.scene;
     if (scene) {
       _activeStormSkyColor
         .copy(_storyNightSkyColor)
-        .lerp(_storyLightningSkyColor, skyFlash * 0.72);
+        .lerp(_storyLightningSkyColor, isMobile ? skyFlash * 0.15 : isSmoothOrMobile ? skyFlash * 0.25 : skyFlash * 0.5);
       _nightHorizonFog.color.copy(_activeStormSkyColor);
-      _nightHorizonFog.density = this.difficulty === 'nightmare' ? 0.015 : 0.0105;
+      _nightHorizonFog.density = isMobile
+        ? 0.042
+        : isSmoothOrMobile
+          ? this.difficulty === 'nightmare'
+            ? 0.036
+            : 0.028
+          : this.difficulty === 'nightmare'
+            ? 0.015
+            : 0.0105;
       if (scene.fog !== _nightHorizonFog) {
         scene.fog = _nightHorizonFog;
       }
-      if (scene.background !== _activeStormSkyColor) {
-        scene.background = _activeStormSkyColor;
+      if (scene.background !== _storyNightSkyColor) {
+        scene.background = _storyNightSkyColor;
       }
     }
 
@@ -1779,9 +1883,13 @@ export class RaktPishachiniGame extends xb.Script {
 
   private buildThakurMansion() {
     this.add(this.mansionRoot);
+    const isMobile = this.isMobileDevice();
 
-    this.haveli = buildThakurHaveli();
+    this.haveli = buildThakurHaveli({ disableExtraLights: isMobile });
     this.haveli.setWeatherQuality(this.graphicsQuality);
+    this.haveli.setLightBudgetMode(
+      this.graphicsQuality === 'low' || isMobile,
+    );
     this.mansionRoot.add(this.haveli.root);
     this.onHaveliReady?.(this.haveli);
 
@@ -1796,19 +1904,19 @@ export class RaktPishachiniGame extends xb.Script {
     this.haveli.mansionKeyGroup.visible = true;
     this.playerFloorY = 0;
 
-    this.witchModel = buildRukminiWitchModel();
+    this.witchModel = buildRukminiWitchModel({ disableLights: isMobile });
     this.witchModel.root.position.set(0, 0, -8.5);
     this.mansionRoot.add(this.witchModel.root);
 
     // Watchman Baba (Chowkidar) standing outside the Outer Compound Iron Gate (z = 34.0) with his glowing brass lantern
-    this.chowkidar = createChowkidar();
+    this.chowkidar = createChowkidar({ disableLights: isMobile });
     this.chowkidar.root.position.set(2.45, 0, 35.0);
     this.chowkidar.root.rotation.y = -0.65;
     CharacterGLBManager.register('golu', this.chowkidar);
     this.mansionRoot.add(this.chowkidar.root);
 
     // Legacy placeholder hidden so exact 4 friends = Player + Kabir + Riya + Dev
-    const fAarav = createAarav();
+    const fAarav = createAarav({ disableLights: isMobile });
     fAarav.root.position.set(-2.25, 0, 35.1);
     fAarav.root.visible = false;
     CharacterGLBManager.register('mangesh', fAarav);
@@ -1816,21 +1924,21 @@ export class RaktPishachiniGame extends xb.Script {
     this.aaravFriend = fAarav;
 
     // 3 Unchained Exterior/Group Companion Friends (Kabir, Riya, Dev) who spawn behind the player (>= 3.5m spacing buffer)
-    const compKabir = createKabir();
+    const compKabir = createKabir({ disableLights: isMobile });
     compKabir.boundToPillar = false;
     compKabir.setAnimation('idle');
     compKabir.root.position.set(-0.15, 0, 44.85);
     compKabir.root.rotation.y = Math.PI;
     this.mansionRoot.add(compKabir.root);
 
-    const compRiya = createRiya();
+    const compRiya = createRiya({ disableLights: isMobile });
     compRiya.boundToPillar = false;
     compRiya.setAnimation('idle');
     compRiya.root.position.set(2.75, 0, 44.95);
     compRiya.root.rotation.y = Math.PI;
     this.mansionRoot.add(compRiya.root);
 
-    const compDev = createDev();
+    const compDev = createDev({ disableLights: isMobile });
     compDev.boundToPillar = false;
     compDev.setAnimation('idle');
     compDev.root.position.set(1.35, 0, 45.85);
@@ -1887,13 +1995,13 @@ export class RaktPishachiniGame extends xb.Script {
 
     // The 3 Trapped Friends (Kabir, Riya, Dev) locked inside corner rusted iron-bar Jail Cells (लोहे की जेल)
     // across 2F, 3F & Underground Dungeon U1 after the Step 4 blackout
-    const fKabir = createKabir();
+    const fKabir = createKabir({ disableLights: isMobile });
     CharacterGLBManager.register('mangesh', fKabir);
 
-    const fRiya = createRiya();
+    const fRiya = createRiya({ disableLights: isMobile });
     CharacterGLBManager.register('mangesh', fRiya);
 
-    const fDev = createDev();
+    const fDev = createDev({ disableLights: isMobile });
     CharacterGLBManager.register('mangesh', fDev);
 
     this.friends = [fAarav, fKabir, fRiya, fDev];
@@ -2082,7 +2190,7 @@ export class RaktPishachiniGame extends xb.Script {
       this.playerArmsAdded = true;
     }
 
-    this.spawnRelicsForSession(4);
+    this.spawnRelicsForSession(Math.max(4, this.requiredItems));
     this.spawnThrowablesForSession();
   }
 
@@ -4514,7 +4622,9 @@ export class RaktPishachiniGame extends xb.Script {
         );
         this.synth.playRelicChime(true);
         this.cameraShakeIntensity = Math.max(this.cameraShakeIntensity, 0.24);
-        this.haveli.wellFireLight.intensity = 11.0;
+        if (this.haveli.wellFireLight) {
+          this.haveli.wellFireLight.intensity = 11.0;
+        }
 
         // Every time a cursed item is burned: Red lightning flash across the Haveli + Rukmini's angry Hindi warning
         this.triggerHaveliRedLightningFlash(1.55);
@@ -4627,7 +4737,11 @@ export class RaktPishachiniGame extends xb.Script {
     this.triggerSoundAlert(0.8, 14.0);
   }
 
-  public shadowsEnabled = true;
+  public shadowsEnabled = !(
+    typeof navigator !== 'undefined' &&
+    (/Android|iPhone|iPad/i.test(navigator.userAgent) ||
+      (typeof window !== 'undefined' && window.innerWidth < 950))
+  );
   public brightnessPercent = 100;
   public targetFps = 60;
   public matchStartTimeMs = Date.now();
@@ -4745,7 +4859,7 @@ export class RaktPishachiniGame extends xb.Script {
     this.brightnessPercent = clamped;
     const renderer = xb.core.renderer;
     if (renderer instanceof THREE.WebGLRenderer) {
-      renderer.toneMappingExposure = 1.25 * (clamped / 100);
+      renderer.toneMappingExposure = Math.min(1.15, 1.15 * (clamped / 100));
     }
   }
 
@@ -4759,26 +4873,63 @@ export class RaktPishachiniGame extends xb.Script {
     if (typeof shadowsOverride === 'boolean') {
       this.shadowsEnabled = shadowsOverride;
     }
+    const isMobile = this.isMobileDevice();
+    const isSmoothOrMobile = quality === 'low' || isMobile;
+    const activeShadows = !isSmoothOrMobile && this.shadowsEnabled;
+
     const renderer = xb.core.renderer;
     const dpr = window.devicePixelRatio || 1;
     if (renderer instanceof THREE.WebGLRenderer) {
-      if (quality === 'ultra' || quality === 'high') {
-        renderer.setPixelRatio(Math.min(dpr, quality === 'ultra' ? 2.0 : 1.75));
-        renderer.shadowMap.enabled = this.shadowsEnabled;
-        renderer.shadowMap.type =
-          quality === 'ultra' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
-      } else if (quality === 'medium') {
-        renderer.setPixelRatio(Math.min(dpr, 1.25));
-        renderer.shadowMap.enabled = this.shadowsEnabled;
-        renderer.shadowMap.type = THREE.BasicShadowMap;
-      } else {
-        // SMOOTH preset for low-end Android phones: pixelRatio 1.0, heavy shadows disabled
+      renderer.setClearColor(0x05070d, 1);
+      if (isSmoothOrMobile) {
+        // SMOOTH / Android mobile optimization: pixelRatio 1.0, heavy real-time shadows disabled
         renderer.setPixelRatio(1.0);
         renderer.shadowMap.enabled = false;
+      } else if (quality === 'ultra' || quality === 'high') {
+        renderer.setPixelRatio(Math.min(dpr, quality === 'ultra' ? 2.0 : 1.75));
+        renderer.shadowMap.enabled = activeShadows;
+        renderer.shadowMap.type =
+          quality === 'ultra' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+      } else {
+        renderer.setPixelRatio(Math.min(dpr, 1.25));
+        renderer.shadowMap.enabled = activeShadows;
+        renderer.shadowMap.type = THREE.BasicShadowMap;
       }
-      renderer.toneMappingExposure = 1.25 * (this.brightnessPercent / 100);
+      renderer.toneMappingExposure = Math.min(
+        1.15,
+        1.15 * (this.brightnessPercent / 100),
+      );
       renderer.shadowMap.needsUpdate = true;
     }
+
+    if (this.moonKeyLight) {
+      this.moonKeyLight.castShadow = activeShadows;
+    }
+    if (this.flashlight) {
+      this.flashlight.castShadow = activeShadows;
+    }
+    if (this.oppositeDirLight) {
+      this.oppositeDirLight.visible = !isSmoothOrMobile;
+    }
+
+    const cam = xb.core.camera as THREE.PerspectiveCamera | undefined;
+    if (cam) {
+      const targetFar = isSmoothOrMobile ? 65 : 280;
+      if (cam.far !== targetFar) {
+        cam.far = targetFar;
+        cam.updateProjectionMatrix();
+      }
+    }
+
+    const scene = xb.core.scene;
+    if (scene && this.gameState === 'playing' && this.entryPhase !== 'victory_escape_cutscene') {
+      scene.background = _storyNightSkyColor;
+      _nightHorizonFog.color.setHex(0x05070d);
+      _nightHorizonFog.density = isMobile ? 0.042 : isSmoothOrMobile ? 0.028 : 0.0105;
+      scene.fog = _nightHorizonFog;
+    }
+    this.syncViewportSize();
+
     if (this.haveli) {
       // Scale particle density smoothly across Smooth (low) / Standard (medium) / Ultra (high) / Max (ultra)
       const density =
@@ -4808,6 +4959,7 @@ export class RaktPishachiniGame extends xb.Script {
         this.haveli.wellSmokeParticles[i].visible = i % smokeStep === 0;
       }
       this.haveli.setWeatherQuality(quality);
+      this.haveli.setLightBudgetMode(isSmoothOrMobile);
     }
   }
 
@@ -5227,16 +5379,22 @@ export class RaktPishachiniGame extends xb.Script {
     this.entryBlackoutElapsed = 0;
     this.entryFlickerElapsed = 0;
 
+    const isMobile = this.isMobileDevice();
+    const isSmoothOrMobile = this.graphicsQuality === 'low' || isMobile;
     const scene = xb.core.scene;
     if (scene) {
       scene.background = _storyNightSkyColor;
       _nightHorizonFog.color.copy(_storyNightSkyColor);
-      _nightHorizonFog.density = 0.0105;
+      _nightHorizonFog.density = isMobile
+        ? 0.042
+        : isSmoothOrMobile
+          ? 0.028
+          : 0.0105;
       scene.fog = _nightHorizonFog;
     }
     if (this.ambientLight) {
-      this.ambientLight.color.setHex(0xa4bad8);
-      this.ambientLight.intensity = 0.72;
+      this.ambientLight.color.setHex(isMobile ? 0x1a2035 : 0xa4bad8);
+      this.ambientLight.intensity = isMobile ? 0.35 : 0.72;
     }
     if (this.hemiLight) {
       this.hemiLight.color.setHex(0xb4ccf0);
@@ -5244,8 +5402,8 @@ export class RaktPishachiniGame extends xb.Script {
       this.hemiLight.intensity = 0.82;
     }
     if (this.moonKeyLight) {
-      this.moonKeyLight.color.setHex(0xdce8ff);
-      this.moonKeyLight.intensity = 0.92;
+      this.moonKeyLight.color.setHex(isMobile ? 0x6688cc : 0xdce8ff);
+      this.moonKeyLight.intensity = isMobile ? 0.45 : 0.92;
       this.moonKeyLight.position.set(-22, 38, -42);
     }
     const camReset = xb.core.camera as THREE.PerspectiveCamera | undefined;
@@ -5344,7 +5502,9 @@ export class RaktPishachiniGame extends xb.Script {
         mirror.flashTimer = 0;
         mirror.cooldownTimer = 0;
         mirror.reflectionGroup.visible = false;
-        mirror.scareLight.intensity = 0;
+        if (mirror.scareLight) {
+          mirror.scareLight.intensity = 0;
+        }
       }
       for (const patch of this.haveli.banglePatches) {
         patch.cooldownTimer = 0;
@@ -5566,9 +5726,12 @@ export class RaktPishachiniGame extends xb.Script {
       });
     }
 
-    const flashLight = new THREE.PointLight(0xffdf78, 5.2, 9.5);
-    flashLight.position.copy(witchFaceLocal);
-    burstGroup.add(flashLight);
+    let flashLight: THREE.PointLight | null = null;
+    if (!this.isMobileDevice()) {
+      flashLight = new THREE.PointLight(0xffdf78, 5.2, 9.5);
+      flashLight.position.copy(witchFaceLocal);
+      burstGroup.add(flashLight);
+    }
 
     this.mansionRoot.add(burstGroup);
     this.bhabhutBurstEffects.push({
@@ -5766,9 +5929,12 @@ export class RaktPishachiniGame extends xb.Script {
     waveRing2.position.y = 0.06;
     fxGroup.add(waveRing2);
 
-    const flashLight = new THREE.PointLight(0xff9933, 3.2, 9.0);
-    flashLight.position.set(0, 0.45, 0);
-    fxGroup.add(flashLight);
+    let flashLight: THREE.PointLight | null = null;
+    if (!this.isMobileDevice()) {
+      flashLight = new THREE.PointLight(0xff9933, 3.2, 9.0);
+      flashLight.position.set(0, 0.45, 0);
+      fxGroup.add(flashLight);
+    }
 
     this.mansionRoot.add(fxGroup);
     this.shatterEffects.push({
@@ -5964,7 +6130,9 @@ export class RaktPishachiniGame extends xb.Script {
         (1 - waveT2) * 0.55,
       );
 
-      fx.flashLight.intensity = Math.max(0, 3.2 * (1 - Math.min(1, fx.age / 0.4)));
+      if (fx.flashLight) {
+        fx.flashLight.intensity = Math.max(0, 3.2 * (1 - Math.min(1, fx.age / 0.4)));
+      }
 
       if (fx.age >= fx.maxAge) {
         this.mansionRoot.remove(fx.group);
@@ -6057,11 +6225,13 @@ export class RaktPishachiniGame extends xb.Script {
         (p.mesh.material as THREE.MeshBasicMaterial).opacity = fade * 0.92;
       }
 
-      bfx.flashLight.position.copy(bfx.targetCenter);
-      bfx.flashLight.intensity =
-        bfx.age < 0.4
-          ? 5.5
-          : Math.max(0, 3.2 * fade * (0.75 + 0.25 * Math.sin(time * 18)));
+      if (bfx.flashLight) {
+        bfx.flashLight.position.copy(bfx.targetCenter);
+        bfx.flashLight.intensity =
+          bfx.age < 0.4
+            ? 5.5
+            : Math.max(0, 3.2 * fade * (0.75 + 0.25 * Math.sin(time * 18)));
+      }
 
       if (bfx.age >= bfx.maxAge) {
         this.mansionRoot.remove(bfx.group);
@@ -6370,12 +6540,48 @@ export class RaktPishachiniGame extends xb.Script {
       }
       cam.updateMatrixWorld(true);
     }
+    const isMobile = this.isMobileDevice();
+    const isSmoothOrMobile = this.graphicsQuality === 'low' || isMobile;
     const scene = xb.core.scene;
     if (scene) {
       scene.background = _storyNightSkyColor;
       _nightHorizonFog.color.copy(_storyNightSkyColor);
-      _nightHorizonFog.density = 0.0105;
+      _nightHorizonFog.density = isMobile
+        ? 0.042
+        : isSmoothOrMobile
+          ? 0.028
+          : 0.0105;
       scene.fog = _nightHorizonFog;
+    }
+    this.syncViewportSize();
+  }
+
+  public syncViewportSize() {
+    const w = Math.max(1, window.innerWidth || 1);
+    const h = Math.max(1, window.innerHeight || 1);
+    const isMobile = this.isMobileDevice();
+    const isSmoothOrMobile = this.graphicsQuality === 'low' || isMobile;
+
+    const renderer = xb.core.renderer;
+    if (renderer instanceof THREE.WebGLRenderer) {
+      renderer.setClearColor(0x05070d, 1);
+      if (isSmoothOrMobile) {
+        renderer.setPixelRatio(1);
+      }
+      renderer.setSize(w, h, false);
+      const canvas = renderer.domElement;
+      if (canvas) {
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        canvas.style.backgroundColor = '#05070d';
+      }
+    }
+
+    const cam = xb.core.camera as THREE.PerspectiveCamera | undefined;
+    if (cam) {
+      cam.aspect = w / h;
+      cam.far = isSmoothOrMobile ? 65 : 280;
+      cam.updateProjectionMatrix();
     }
   }
 
@@ -6411,20 +6617,32 @@ export class RaktPishachiniGame extends xb.Script {
 
     if (this.ambientLight) {
       this.ambientLight.color.setHex(isFlashback ? 0xffdfb8 : 0xb8cfff);
-      this.ambientLight.intensity = 1.25 + this.storyFlashBoost * 1.9;
+      this.ambientLight.intensity = Math.min(
+        1.45,
+        1.15 + this.storyFlashBoost * 0.45,
+      );
     }
     if (this.hemiLight) {
       this.hemiLight.color.setHex(isFlashback ? 0xffdca8 : 0xa3c2ff);
       this.hemiLight.groundColor.setHex(isFlashback ? 0x5c3c22 : 0x2a2433);
-      this.hemiLight.intensity = 1.2 + this.storyFlashBoost * 1.5;
+      this.hemiLight.intensity = Math.min(
+        1.45,
+        1.1 + this.storyFlashBoost * 0.45,
+      );
     }
     if (this.moonKeyLight) {
       this.moonKeyLight.color.setHex(isFlashback ? 0xffe4bd : 0xd6e6ff);
-      this.moonKeyLight.intensity = 1.35 + this.storyFlashBoost * 3.0;
+      this.moonKeyLight.intensity = Math.min(
+        2.2,
+        1.35 + this.storyFlashBoost * 0.85,
+      );
     }
     if (this.oppositeDirLight) {
       this.oppositeDirLight.color.setHex(0xff8e6b);
-      this.oppositeDirLight.intensity = 0.85 + this.storyFlashBoost * 1.1;
+      this.oppositeDirLight.intensity = Math.min(
+        1.1,
+        0.85 + this.storyFlashBoost * 0.35,
+      );
     }
     if (this.flashlight) {
       this.flashlight.intensity = 1.85;
@@ -7222,8 +7440,10 @@ export class RaktPishachiniGame extends xb.Script {
         cam.near = 0.1;
         projDirty = true;
       }
-      if (cam.far < 280) {
-        cam.far = 280;
+      const targetFar =
+        this.graphicsQuality === 'low' || this.isMobileDevice() ? 65 : 280;
+      if (cam.far !== targetFar) {
+        cam.far = targetFar;
         projDirty = true;
       }
       if (projDirty) {
@@ -8172,9 +8392,11 @@ export class RaktPishachiniGame extends xb.Script {
             mat.emissiveIntensity = eyePulse;
           }
         }
-        this.witchModel.eyeCrimsonLight.intensity = isFinalRage
-          ? 1.75 + Math.sin(time * 12) * 0.45
-          : 0.9 + Math.sin(time * 2.6) * 0.08;
+        if (this.witchModel.eyeCrimsonLight) {
+          this.witchModel.eyeCrimsonLight.intensity = isFinalRage
+            ? 1.75 + Math.sin(time * 12) * 0.45
+            : 0.9 + Math.sin(time * 2.6) * 0.08;
+        }
       }
 
       // Update humanoid procedural stalking walk, periodic creepy twitchy head-tilt, gently swaying arms & ankle mist
@@ -8885,7 +9107,10 @@ export class RaktPishachiniGame extends xb.Script {
           mat.emissiveIntensity = 6.5;
         }
       }
-      this.witchModel.eyeCrimsonLight.intensity = 2.6 + Math.sin(time * 38) * 0.65;
+      if (this.witchModel.eyeCrimsonLight) {
+        this.witchModel.eyeCrimsonLight.intensity =
+          2.6 + Math.sin(time * 38) * 0.65;
+      }
 
       // Read Rukmini's exact world-space face center so camera aims directly at her eyes & mouth
       this.witchModel.root.updateMatrixWorld(true);
@@ -9404,10 +9629,14 @@ export class RaktPishachiniGame extends xb.Script {
         mirror.flashTimer = Math.max(0, mirror.flashTimer - dt);
         mirror.reflectionOverlayMat.opacity = 0.74 + Math.sin(time * 34) * 0.2;
         mirror.reflectionGroup.position.x = Math.sin(time * 5.2) * 0.025;
-        mirror.scareLight.intensity = 1.45 + Math.sin(time * 28) * 0.45;
+        if (mirror.scareLight) {
+          mirror.scareLight.intensity = 1.45 + Math.sin(time * 28) * 0.45;
+        }
         if (mirror.flashTimer <= 0) {
           mirror.reflectionGroup.visible = false;
-          mirror.scareLight.intensity = 0;
+          if (mirror.scareLight) {
+            mirror.scareLight.intensity = 0;
+          }
         }
         continue;
       }
@@ -9440,7 +9669,9 @@ export class RaktPishachiniGame extends xb.Script {
         mirror.cooldownTimer = 14.0;
         mirror.reflectionGroup.visible = true;
         mirror.reflectionOverlayMat.opacity = 0.92;
-        mirror.scareLight.intensity = 1.65;
+        if (mirror.scareLight) {
+          mirror.scareLight.intensity = 1.65;
+        }
         this.cameraShakeIntensity = Math.max(this.cameraShakeIntensity, 0.055);
         this.synth.playMirrorGhostFlash();
         if (this.mirrorLogCooldownTimer <= 0) {

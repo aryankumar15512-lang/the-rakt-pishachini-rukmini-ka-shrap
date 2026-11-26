@@ -280,8 +280,8 @@ export class StormWeatherSystem {
    */
   public setQuality(quality: WeatherGraphicsQuality) {
     if (quality === 'low') {
-      this.activeRainCount = 420;
-      this.activeMistCount = 12;
+      this.activeRainCount = 150;
+      this.activeMistCount = 8;
     } else if (quality === 'medium') {
       this.activeRainCount = 1000;
       this.activeMistCount = 24;

@@ -59,6 +59,7 @@ export interface HumanoidOptions {
   snappedNeck?: boolean;
   reverseFeet?: boolean;
   boundToPillar?: boolean;
+  disableLights?: boolean;
 }
 
 export interface HumanoidCharacter {
@@ -3013,14 +3014,16 @@ export function createHumanoid(options: HumanoidOptions): HumanoidCharacter {
     lanternGroup.add(lanternFlameMesh);
 
     // Warm flickering THREE.PointLight inside the lantern softly illuminating Watchman Baba's wrinkled face & shawl
-    lanternLight = new THREE.PointLight(
-      options.lanternLightColor ?? 0xff9e38,
-      3.1,
-      7.8,
-      1.75,
-    );
-    lanternLight.position.set(0, -0.185, 0.02);
-    lanternGroup.add(lanternLight);
+    if (!options.disableLights) {
+      lanternLight = new THREE.PointLight(
+        options.lanternLightColor ?? 0xff9e38,
+        3.1,
+        7.8,
+        1.75,
+      );
+      lanternLight.position.set(0, -0.185, 0.02);
+      lanternGroup.add(lanternLight);
+    }
   }
 
   // ============================================================================
@@ -3320,9 +3323,11 @@ export function createHumanoid(options: HumanoidOptions): HumanoidCharacter {
 
   if (options.isGhost) {
     // Soft low-intensity ambient rim aura so her silhouette reads without washing out her gaunt face
-    auraLight = new THREE.PointLight(0x880812, 0.55, 3.6, 1.8);
-    auraLight.position.set(0, 1.15, -0.12);
-    proceduralGroup.add(auraLight);
+    if (!options.disableLights) {
+      auraLight = new THREE.PointLight(0x880812, 0.55, 3.6, 1.8);
+      auraLight.position.set(0, 1.15, -0.12);
+      proceduralGroup.add(auraLight);
+    }
 
     const mistTex = getGhostMistSpriteTexture();
     if (mistTex) {
@@ -3517,31 +3522,29 @@ export function createHumanoid(options: HumanoidOptions): HumanoidCharacter {
         lens.rotation.x = Math.PI / 2;
         lens.position.set(0, -0.117, 0);
 
-        secondaryTorchLight = new THREE.PointLight(0xffcf88, 1.35, 10.5, 1.6);
-        secondaryTorchLight.position.set(0, -0.18, 0.02);
+        secondaryTorchGroup.add(handle, bezel, lens);
 
-        const spotTarget = new THREE.Object3D();
-        spotTarget.position.set(0.18, 0.92, 4.4);
-        proceduralGroup.add(spotTarget);
+        if (!options.disableLights) {
+          secondaryTorchLight = new THREE.PointLight(0xffcf88, 1.35, 10.5, 1.6);
+          secondaryTorchLight.position.set(0, -0.18, 0.02);
 
-        secondaryTorchSpot = new THREE.SpotLight(
-          0xffe2ad,
-          1.55,
-          13.0,
-          Math.PI * 0.36,
-          0.78,
-          1.5,
-        );
-        secondaryTorchSpot.position.set(0, -0.13, 0);
-        secondaryTorchSpot.target = spotTarget;
+          const spotTarget = new THREE.Object3D();
+          spotTarget.position.set(0.18, 0.92, 4.4);
+          proceduralGroup.add(spotTarget);
 
-        secondaryTorchGroup.add(
-          handle,
-          bezel,
-          lens,
-          secondaryTorchLight,
-          secondaryTorchSpot,
-        );
+          secondaryTorchSpot = new THREE.SpotLight(
+            0xffe2ad,
+            1.55,
+            13.0,
+            Math.PI * 0.36,
+            0.78,
+            1.5,
+          );
+          secondaryTorchSpot.position.set(0, -0.13, 0);
+          secondaryTorchSpot.target = spotTarget;
+
+          secondaryTorchGroup.add(secondaryTorchLight, secondaryTorchSpot);
+        }
         character.secondaryTorchGroup = secondaryTorchGroup;
         character.secondaryTorchLight = secondaryTorchLight;
         character.secondaryTorchSpot = secondaryTorchSpot;
@@ -4187,7 +4190,7 @@ export function createHumanoid(options: HumanoidOptions): HumanoidCharacter {
 /**
  * 1. The Four Friends: Aarav, Kabir, Riya, Dev (plus legacy aliases Rahul, Neha, Aman, Pooja)
  */
-export function createAarav(): HumanoidCharacter {
+export function createAarav(opts?: { disableLights?: boolean }): HumanoidCharacter {
   return createHumanoid({
     name: 'Aarav',
     height: 1.75,
@@ -4199,10 +4202,11 @@ export function createAarav(): HumanoidCharacter {
     undershirtColor: 0x2c2f34, // Charcoal tee
     pantsColor: 0x1c222b, // Dark weathered denim jeans
     shoeColor: 0x181412,
+    disableLights: opts?.disableLights,
   });
 }
 
-export function createKabir(): HumanoidCharacter {
+export function createKabir(opts?: { disableLights?: boolean }): HumanoidCharacter {
   return createHumanoid({
     name: 'Kabir',
     height: 1.74,
@@ -4216,10 +4220,11 @@ export function createKabir(): HumanoidCharacter {
     pantsColor: 0x1b232e, // Dark weathered denim jeans (roughness: 0.88)
     shoeColor: 0x181412, // Dark weathered boots
     boundToPillar: true,
+    disableLights: opts?.disableLights,
   });
 }
 
-export function createRiya(): HumanoidCharacter {
+export function createRiya(opts?: { disableLights?: boolean }): HumanoidCharacter {
   return createHumanoid({
     name: 'Riya',
     height: 1.65,
@@ -4233,10 +4238,11 @@ export function createRiya(): HumanoidCharacter {
     shoeColor: 0x1b1513, // Dark weathered boots
     bangles: false,
     boundToPillar: true,
+    disableLights: opts?.disableLights,
   });
 }
 
-export function createDev(): HumanoidCharacter {
+export function createDev(opts?: { disableLights?: boolean }): HumanoidCharacter {
   return createHumanoid({
     name: 'Dev',
     height: 1.72,
@@ -4250,6 +4256,7 @@ export function createDev(): HumanoidCharacter {
     pantsColor: 0x1c2026, // Dark weathered trousers/denim (roughness: 0.88)
     shoeColor: 0x161311, // Dark boots
     boundToPillar: true,
+    disableLights: opts?.disableLights,
   });
 }
 
@@ -4296,7 +4303,7 @@ export function createPooja(): HumanoidCharacter {
  * dusty off-white/beige khadi kurta-dhoti (#bfb59e), thick dark weathered brown/charcoal
  * wool shawl, folded deep-maroon/rust Pagri turban, and warm flickering antique brass lantern.
  */
-export function createChowkidar(): HumanoidCharacter {
+export function createChowkidar(opts?: { disableLights?: boolean }): HumanoidCharacter {
   return createHumanoid({
     name: 'WatchmanBaba',
     height: 1.69,
@@ -4315,6 +4322,7 @@ export function createChowkidar(): HumanoidCharacter {
     shawlColor: 0x2d2420, // Thick dark weathered brown/charcoal wool shawl
     hasLantern: true,
     lanternLightColor: 0xff9e38,
+    disableLights: opts?.disableLights,
   });
 }
 
@@ -4326,7 +4334,7 @@ export function createChowkidar(): HumanoidCharacter {
  * antique gold borders & torn veil, pale bony clawed hands with broken red glass bangles,
  * tarnished silver payal anklets, backward-turned feet (उल्टे पाँव), and swirling ankle mist.
  */
-export function createRukmini(): HumanoidCharacter {
+export function createRukmini(opts?: { disableLights?: boolean }): HumanoidCharacter {
   return createHumanoid({
     name: 'Rukmini',
     height: 1.76,
@@ -4346,6 +4354,7 @@ export function createRukmini(): HumanoidCharacter {
     bangles: true, // Broken red glass bangles on wrists
     bangleColor: 0xa80916,
     longClawFingers: true, // Pale bony arms & elongated dark-nailed clawed hands
+    disableLights: opts?.disableLights,
   });
 }
 

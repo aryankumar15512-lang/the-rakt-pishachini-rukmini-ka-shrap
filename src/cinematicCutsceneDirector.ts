@@ -1100,6 +1100,20 @@ export class CinematicCutsceneDirector {
     cancelAnimationFrame(this.rafId);
   }
 
+  public dispose() {
+    this.stop();
+    if (this.renderer) {
+      try {
+        this.renderer.forceContextLoss();
+      } catch {
+        // Ignore context loss errors
+      }
+      this.renderer.dispose();
+      this.renderer = null;
+    }
+    this.webglUnavailable = false;
+  }
+
   private updateIntroVillage(dt: number, time: number) {
     const t = this.sceneElapsed;
 

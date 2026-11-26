@@ -1464,8 +1464,10 @@ export class VisualNovelIntroDirector {
 
   private triggerScreenFlash(color: string, customDurationMs?: number) {
     if (this.jumpscareIntensity <= 0.01) return;
-    const baseDuration =
-      customDurationMs ?? Math.round(420 * this.getLightningDurationFactor());
+    const baseDuration = Math.min(
+      150,
+      customDurationMs ?? Math.round(140 * this.getLightningDurationFactor()),
+    );
     if (baseDuration <= 0) return;
 
     if (this.flashTimeoutId) {
@@ -1473,26 +1475,27 @@ export class VisualNovelIntroDirector {
       this.flashTimeoutId = 0;
     }
 
+    const peakOpacity = Math.min(0.18, 0.08 + this.jumpscareIntensity * 0.1);
     this.lightningFlashEl.style.backgroundColor = color;
-    this.lightningFlashEl.style.opacity = `${Math.min(1.0, 0.4 + this.jumpscareIntensity * 0.6)}`;
+    this.lightningFlashEl.style.opacity = `${peakOpacity.toFixed(2)}`;
     this.lightningFlashEl.classList.remove('hidden');
     this.lightningFlashEl.classList.add('flash-active');
 
-    if (this.jumpscareIntensity > 0.7 && baseDuration > 180) {
+    if (this.jumpscareIntensity > 0.7 && baseDuration > 110) {
       window.setTimeout(() => {
         if (!this.isPlaying) return;
-        this.lightningFlashEl.style.opacity = '0.35';
+        this.lightningFlashEl.style.opacity = '0.06';
         window.setTimeout(() => {
           if (!this.isPlaying) return;
-          this.lightningFlashEl.style.opacity = `${Math.min(1.0, 0.45 + this.jumpscareIntensity * 0.55)}`;
+          this.lightningFlashEl.style.opacity = `${peakOpacity.toFixed(2)}`;
         }, 35);
-      }, 55);
+      }, 45);
     }
 
     this.flashTimeoutId = window.setTimeout(() => {
       this.lightningFlashEl.classList.remove('flash-active');
       this.lightningFlashEl.classList.add('hidden');
-      this.lightningFlashEl.style.opacity = '1';
+      this.lightningFlashEl.style.opacity = '0';
       this.flashTimeoutId = 0;
     }, baseDuration);
   }

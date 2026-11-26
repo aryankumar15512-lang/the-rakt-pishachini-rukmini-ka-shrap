@@ -185,8 +185,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 3400);
   };
 
+  const isMobilePerfDevice =
+    /Android|iPhone|iPad/i.test(navigator.userAgent) ||
+    window.innerWidth < 950;
   let showFpsCounter = false;
-  let shadowsEnabled = true;
+  let shadowsEnabled = !isMobilePerfDevice;
   let brightnessPercent = 100;
   let minimapMode: 'north_up' | 'rotating' = 'north_up';
   let notchScreenEnabled = true;
@@ -305,6 +308,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const rawSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (!rawSettings && isMobilePerfDevice) {
+        gfxQualitySelect.value = 'low';
+        shadowsEnabled = false;
+      }
       if (rawSettings) {
         const parsed = JSON.parse(rawSettings) as {
           quality?: 'ultra' | 'high' | 'medium' | 'low';
@@ -467,7 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const factor = intensity / 100;
-    const durationMs = intensity > 0 ? Math.round(220 + factor * 320) : 260;
+    const durationMs = 150;
 
     // Show 'Testing...' label and active color state on button
     testJumpscareBtn.textContent = 'Testing...';
@@ -475,7 +482,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (intensity > 0) {
       // Trigger screen-wide low-impact lightning flash + modal electric glow
-      optionsLightningFlash.style.backgroundColor = `rgba(215, 235, 255, ${(0.22 + factor * 0.55).toFixed(2)})`;
+      optionsLightningFlash.style.backgroundColor = `rgba(215, 235, 255, ${(0.08 + factor * 0.1).toFixed(2)})`;
+      optionsLightningFlash.style.opacity = '';
       optionsLightningFlash.style.animationDuration = `${durationMs}ms`;
       optionsLightningFlash.classList.remove('hidden', 'flash-active');
       void optionsLightningFlash.offsetWidth;
@@ -489,6 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
     testFlashTimer = window.setTimeout(() => {
       optionsLightningFlash.classList.remove('flash-active');
       optionsLightningFlash.classList.add('hidden');
+      optionsLightningFlash.style.opacity = '0';
       optionsModal.classList.remove('lightning-test-glow');
       testJumpscareBtn.textContent = '⚡ Test Jumpscare';
       testJumpscareBtn.classList.remove('is-testing');
@@ -707,7 +716,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   hostStartMatchBtn.addEventListener('click', () => {
     settingsModal.classList.add('hidden');
-    launchDefaultSingleplayerMatch();
+    game.requestImmediateDesktopPointerLock();
+    void launchDefaultSingleplayerMatch();
   });
 
   const clearPlayerNameError = () => {
@@ -1152,6 +1162,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function playCutsceneScene(sceneId: CutsceneId) {
     const token = ++activeCutsceneToken;
+    disposeLobbyScene3D();
     game.synth.setGameplayAudioEnabled(false);
     vnDirector.stop();
     vnPhotoCanvas.classList.add('hidden');
@@ -1212,7 +1223,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   cutsceneDirector.onAutoAdvanceScene = (next) => {
     if (next === 'done') {
-      skipStoryToGame();
+      void skipStoryToGame();
     } else {
       playCutsceneScene(next);
     }
@@ -1242,13 +1253,58 @@ document.addEventListener('DOMContentLoaded', () => {
     startVisualNovelStory(0);
   }
 
+  const disposeLobbyScene3D = () => {
+    if (!lobbyScene3D) return;
+    lobbyScene3D.dispose();
+    lobbyScene3D = null;
+  };
+
+  let xrGameplayInitPromise: Promise<void> | null = null;
+  const ensureXRGameplayInitialized = async () => {
+    disposeLobbyScene3D();
+    cutsceneDirector.dispose();
+    if (!xrGameplayInitPromise) {
+      const options = new xb.Options();
+      options.reticles.enabled = false;
+      options.controllers.visualizeRays = false;
+      options.setAppTitle('The Rakt Pishachini: Rukmini Ka Shrap');
+      options.setAppDescription(
+        '1-4 Player Spatial WebXR & 3D Horror Survival in Thakur Mansion.',
+      );
+      xb.add(game);
+      xrGameplayInitPromise = xb
+        .init(options)
+        .then(() => {
+          game.applyGraphicsSettings(
+            (gfxQualitySelect.value as 'ultra' | 'high' | 'medium' | 'low') ||
+              'high',
+            Number(fpsSettingSelect.value || 60),
+            shadowsEnabled,
+          );
+          game.setBrightness(brightnessPercent);
+          game.syncViewportSize();
+        })
+        .catch((err) => {
+          console.warn('XR Blocks WebGL init fallback:', err);
+        });
+    }
+    await xrGameplayInitPromise;
+    game.applyGraphicsSettings(
+      (gfxQualitySelect.value as 'ultra' | 'high' | 'medium' | 'low') || 'high',
+      Number(fpsSettingSelect.value || 60),
+      shadowsEnabled,
+    );
+    game.setBrightness(brightnessPercent);
+    game.syncViewportSize();
+  };
+
   const playerHandView = document.getElementById('player-hand-view');
 
-  function skipStoryToGame(preserveSavedPosition = false) {
+  async function skipStoryToGame(preserveSavedPosition = false) {
     pausedFromState = null;
     isStoryPaused = false;
     game.isHudLayoutEditorOpen = false;
-    lobbyScene3D?.setActive(false);
+    await ensureXRGameplayInitialized();
     // Ensure ALL launch, lobby, settings, and archive modal overlays are closed before gameplay
     const launchEl = document.getElementById('launch-sequence-overlay');
     if (launchEl) {
@@ -1256,6 +1312,7 @@ document.addEventListener('DOMContentLoaded', () => {
       launchEl.classList.add('hidden');
     }
     [
+      'launch-disclaimer-modal',
       'profile-modal',
       'settings-modal',
       'privacy-policy-modal',
@@ -1269,7 +1326,33 @@ document.addEventListener('DOMContentLoaded', () => {
       'lobby-news-modal',
       'sanctum-modal',
       'endgame-modal',
-    ].forEach((id) => document.getElementById(id)?.classList.add('hidden'));
+      'menu-status-notice',
+      'options-lightning-flash',
+      'vn-lightning-flash',
+      'hud-red-lightning-flash',
+      'entry-blackout-overlay',
+      'respawn-warning-overlay',
+      'floor-change-fade',
+    ].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.add('hidden');
+        el.classList.remove('is-flashing', 'active', 'flash-active', 'is-fading-out');
+      }
+    });
+    optionsLightningFlash.classList.remove('active', 'flash-active');
+    optionsLightningFlash.style.opacity = '0';
+    vnLightningFlash.classList.remove('active', 'flash-active');
+    vnLightningFlash.style.opacity = '0';
+    if (hudRedLightningFlash) {
+      hudRedLightningFlash.style.setProperty('--red-lightning-opacity', '0');
+    }
+    if (entryBlackoutOverlay) {
+      entryBlackoutOverlay.style.opacity = '0';
+    }
+    if (floorChangeFadeEl) {
+      floorChangeFadeEl.style.opacity = '0';
+    }
     optionsModal.classList.add('hidden');
     vnDirector.stop();
     cutsceneDirector.stop();
@@ -1295,6 +1378,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (playerHandView) {
       playerHandView.classList.add('hidden');
     }
+    game.syncViewportSize();
+    window.setTimeout(() => game.syncViewportSize(), 260);
     game.requestGamePointerLock();
     refreshHudState();
     addChatMessage(
@@ -1308,7 +1393,7 @@ document.addEventListener('DOMContentLoaded', () => {
     );
   }
 
-  const launchDefaultSingleplayerMatch = () => {
+  const launchDefaultSingleplayerMatch = async () => {
     const fallbackName = playerNameInput.value.trim() || 'Aarav';
     playerNameInput.value = fallbackName;
     savePlayerNameToStorage(fallbackName);
@@ -1318,8 +1403,9 @@ document.addEventListener('DOMContentLoaded', () => {
     game.playerCount = 1;
     game.requiredItems = 4;
     game.matchStartTimeMs = Date.now();
+    await ensureXRGameplayInitialized();
     game.resetMatch();
-    skipStoryToGame(false);
+    await skipStoryToGame(false);
   };
 
   const openLobbySetupScreen = () => {
@@ -1708,16 +1794,18 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   vnStartGameBtn.addEventListener('click', () => {
-    launchDefaultSingleplayerMatch();
+    void requestMobileFullscreenLandscape();
     game.requestImmediateDesktopPointerLock();
+    void launchDefaultSingleplayerMatch();
   });
   vnOpenLobbyBtn.addEventListener('click', openLobbySetupScreen);
   vnReplayStoryBtn.addEventListener('click', () => startVisualNovelStory(0));
 
   // 3D Intro Cut-to-Black Screen Controls
   pressStartBtn.addEventListener('click', () => {
-    launchDefaultSingleplayerMatch();
+    void requestMobileFullscreenLandscape();
     game.requestImmediateDesktopPointerLock();
+    void launchDefaultSingleplayerMatch();
   });
   openLobbyBtn.addEventListener('click', openLobbySetupScreen);
   replayIntroBtn.addEventListener('click', () => startVisualNovelStory(0));
@@ -3759,6 +3847,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     e.stopPropagation();
+    void requestMobileFullscreenLandscape();
     openLaunchDisclaimer();
   });
 
@@ -3777,6 +3866,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   launchDisclaimerConfirmBtn?.addEventListener('click', (e) => {
     e.stopPropagation();
+    void requestMobileFullscreenLandscape();
     unlockAndStartMenuAmbience();
     launchOverlay?.classList.add('is-fading-out');
     syncLobbyContinueVisibility();
@@ -3905,8 +3995,8 @@ document.addEventListener('DOMContentLoaded', () => {
     isStoryPaused = false;
     pauseModal?.classList.add('hidden');
     pauseSkipStoryBtn.classList.add('hidden');
-    launchDefaultSingleplayerMatch();
     game.requestImmediateDesktopPointerLock();
+    void launchDefaultSingleplayerMatch();
   });
 
   pauseExitMenuBtn?.addEventListener('click', (e) => {
@@ -4009,6 +4099,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const isMobileTouchDevice = (): boolean =>
+    window.innerWidth < 950 ||
     window.matchMedia('(pointer: coarse)').matches ||
     navigator.maxTouchPoints > 0 ||
     /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
@@ -4042,10 +4133,16 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Primary Main Menu Buttons: Continue, New Game, Options, Exit
-  continueGameBtn.addEventListener('click', (e) => {
+  continueGameBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
     void requestMobileFullscreenLandscape();
     unlockAndStartMenuAmbience();
+    if (!game.hasSavedProgress()) {
+      showMenuNotice("कोई सेव डेटा नहीं मिला! कृपया 'New Game' शुरू करें।");
+      return;
+    }
+    game.requestImmediateDesktopPointerLock();
+    await ensureXRGameplayInitialized();
     const loaded = game.loadProgressFromStorage();
     if (!loaded) {
       showMenuNotice("कोई सेव डेटा नहीं मिला! कृपया 'New Game' शुरू करें।");
@@ -4053,8 +4150,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     playerNameInput.value = game.playerName;
     langSelect.value = game.lang;
-    skipStoryToGame(true);
-    game.requestImmediateDesktopPointerLock();
+    await skipStoryToGame(true);
   });
 
   newGameBtn.addEventListener('click', (e) => {
@@ -4077,8 +4173,8 @@ document.addEventListener('DOMContentLoaded', () => {
     closeAllLobbyArchiveModals();
     game.setDifficulty(selectedDifficulty);
     if (introStoryPreference === 'skip') {
-      launchDefaultSingleplayerMatch();
       game.requestImmediateDesktopPointerLock();
+      void launchDefaultSingleplayerMatch();
     } else {
       startStorySequence(1);
     }
@@ -4128,15 +4224,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  introVideo.addEventListener('ended', () => launchDefaultSingleplayerMatch());
+  introVideo.addEventListener('ended', () => {
+    void launchDefaultSingleplayerMatch();
+  });
   skipStoryBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     pausedFromState = null;
     isStoryPaused = false;
     pauseModal?.classList.add('hidden');
     pauseSkipStoryBtn?.classList.add('hidden');
-    launchDefaultSingleplayerMatch();
     game.requestImmediateDesktopPointerLock();
+    void launchDefaultSingleplayerMatch();
   });
 
   const unlockVNStoryAudio = () => {
@@ -4677,6 +4775,7 @@ document.addEventListener('DOMContentLoaded', () => {
     game.toggleMinimapExpanded(false);
     game.matchStartTimeMs = Date.now();
     game.resetMatch();
+    game.syncViewportSize();
     refreshHudState();
   });
 
@@ -4772,16 +4871,6 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('online', syncOfflineBanner);
   window.addEventListener('offline', syncOfflineBanner);
 
-  // Initialize XR Blocks
-  const options = new xb.Options();
-  options.reticles.enabled = false;
-  options.controllers.visualizeRays = false;
-  options.setAppTitle('The Rakt Pishachini: Rukmini Ka Shrap');
-  options.setAppDescription(
-    '1-4 Player Spatial WebXR & 3D Horror Survival in Thakur Mansion.',
-  );
-  xb.add(game);
-  void xb.init(options).catch((err) => {
-    console.warn('XR Blocks WebGL init fallback:', err);
-  });
+  // Gameplay XR Blocks WebGLRenderer is lazily initialized in ensureXRGameplayInitialized()
+  // after disposing the Lobby WebGLRenderer so mobile devices never exhaust WebGL contexts.
 });

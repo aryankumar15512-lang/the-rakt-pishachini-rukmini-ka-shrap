@@ -9,6 +9,7 @@ export interface BasementLabyrinthPropsInput {
   brassMat: THREE.Material;
   copperMat: THREE.Material;
   dripParticles: THREE.Mesh[];
+  disableExtraLights?: boolean;
 }
 
 function createCobwebTexture(): THREE.CanvasTexture {
@@ -683,8 +684,11 @@ export function buildBasementLabyrinthProps(
     new THREE.SphereGeometry(0.13, 10, 8),
     new THREE.MeshBasicMaterial({ color: 0xffe48a }),
   );
-  const beaconLight = new THREE.PointLight(0xffcb66, 4.2, 18, 1.1);
-  beaconGroup.add(beaconCage, beaconGlobe, beaconLight);
+  beaconGroup.add(beaconCage, beaconGlobe);
+  if (!input.disableExtraLights) {
+    const beaconLight = new THREE.PointLight(0xffcb66, 4.2, 18, 1.1);
+    beaconGroup.add(beaconLight);
+  }
   root.add(beaconGroup);
 
   // =========================================================================

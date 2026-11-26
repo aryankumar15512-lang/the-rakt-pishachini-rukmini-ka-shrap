@@ -14,6 +14,7 @@ export interface RoyalPalaceDecorContext {
     woodMat: THREE.MeshStandardMaterial;
     stairCarpetMat: THREE.MeshStandardMaterial;
   };
+  disableExtraLights?: boolean;
 }
 
 // ============================================================================
@@ -726,7 +727,7 @@ export function buildRoyalPalaceDecorations(ctx: RoyalPalaceDecorContext): void 
       mGroup.add(plate, arm, torchShaft, cageBottom, cageTop, coals, flameOuter, flameInner);
 
       let ptLight: THREE.PointLight | undefined;
-      if (withPointLight) {
+      if (withPointLight && !ctx.disableExtraLights) {
         ptLight = new THREE.PointLight(0xff963a, 3.4, 18, 1.35);
         ptLight.position.set(0, 0.56, 0.48);
         mGroup.add(ptLight);
