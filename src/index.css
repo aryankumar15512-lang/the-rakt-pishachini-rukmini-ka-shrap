@@ -700,29 +700,15 @@ h2.game-title {
   box-shadow: 0 0 10px rgba(255, 20, 20, 0.75);
 }
 
-/* Fixed Bottom-Center Subtitle Stage */
-.vn-text-stage {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  pointer-events: none;
-}
-
-.vn-dialogue-box {
-  position: fixed;
-  bottom: 34px;
-  left: 50%;
-  top: auto;
-  right: auto;
-  transform: translateX(-50%);
-  width: min(820px, 88vw);
-  background: rgba(6, 2, 4, 0.84);
-  border: 1.5px solid rgba(255, 60, 60, 0.55);
-  border-radius: 10px;
-  padding: 14px 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.85);
-  color: #f7ecec;
-  text-align: center;
+/* Fixed Bottom-Center Subtitle Stage (Hidden: voice audio plays without dialogue captions) */
+#vn-text-stage,
+.vn-text-stage,
+.vn-dialogue-box,
+.vn-dialogue-content {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 .vn-direction-tag {
@@ -3520,21 +3506,12 @@ body.touch-device:not(.controls-mode-pc) .pc-pointer-lock-prompt,
   border-top: 1px solid rgba(255, 196, 120, 0.22);
 }
 
+#entry-subtitle-bar,
 .entry-subtitle-bar {
-  position: fixed;
-  left: 50%;
-  bottom: clamp(88px, 14vh, 136px);
-  transform: translateX(-50%);
-  z-index: 110;
-  width: min(760px, 88vw);
-  padding: 14px 24px;
-  border-radius: 12px;
-  background: rgba(8, 6, 10, 0.86);
-  border: 1.5px solid rgba(255, 185, 110, 0.38);
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.9);
-  backdrop-filter: blur(8px);
-  text-align: center;
-  pointer-events: none;
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 .entry-subtitle-bar.rukmini-mode {
@@ -7682,14 +7659,365 @@ body.notch-safe-off .lobby-bottom-bar {
 }
 
 /* ==========================================================================
-   RESPONSIVE COMPACT LANDSCAPE MOBILE POLISH
+   RESPONSIVE COMPACT LANDSCAPE MOBILE POLISH (30-35% SMALLER LOBBY & 25-30% SMALLER HUD)
    ========================================================================== */
-@media (max-width: 760px) {
+@media (max-width: 960px), (max-height: 520px) {
+  /* --- 1. LOBBY COMPACT SCALING (~30-35% SMALLER) --- */
+  .lobby-topbar {
+    top: max(8px, env(safe-area-inset-top, 0px));
+    left: max(10px, env(safe-area-inset-left, 0px));
+    right: max(10px, env(safe-area-inset-right, 0px));
+    gap: 10px;
+  }
+
+  /* Top-Left Profile Card (Aarav Lv.1 / UID) */
+  .lobby-profile-banner {
+    gap: 7px;
+    padding: 4px 9px 4px 4px;
+    border-radius: 7px;
+  }
+  .lobby-avatar-frame {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+  }
+  .lobby-profile-name-row {
+    gap: 5px;
+  }
+  .lobby-player-name {
+    font-size: 0.66rem;
+    max-width: 104px;
+  }
+  .lobby-player-level {
+    font-size: 0.54rem;
+  }
+  .lobby-uid-row {
+    gap: 5px;
+  }
+  .lobby-player-uid {
+    font-size: 0.5rem;
+  }
+  .lobby-banner-copy-uid {
+    padding: 1px 5px;
+    font-size: 0.46rem;
+    border-radius: 4px;
+  }
+
+  /* Top-Right Icons (FPS, Mail, News, Friends, Settings) */
+  .lobby-top-actions {
+    gap: 5px;
+  }
+  .lobby-fps-badge {
+    height: 25px;
+    padding: 0 7px;
+    border-radius: 6px;
+    font-size: 0.54rem;
+  }
+  .lobby-icon-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+  }
+  .lobby-icon-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+  .lobby-unread-dot {
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+  }
+
+  /* Lobby Left Sidebar Buttons (Characters, Gear, Diary, Badges) */
+  .lobby-left-sidebar {
+    left: max(10px, env(safe-area-inset-left, 0px));
+    top: 52%;
+    gap: 5px;
+  }
+  .lobby-side-btn {
+    width: 50px;
+    min-height: 40px;
+    padding: 4px 3px;
+    border-radius: 7px;
+    gap: 2px;
+  }
+  .lobby-side-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+  .lobby-side-label {
+    font-size: 0.43rem;
+    letter-spacing: 0.05em;
+  }
+
+  /* Bottom Bar, Tip Bar, Mode Selector Card, & CONTINUE / START Buttons */
+  .lobby-bottom-bar {
+    left: max(10px, env(safe-area-inset-left, 0px));
+    right: max(10px, env(safe-area-inset-right, 0px));
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    gap: 10px;
+  }
+  .lobby-bottom-brand {
+    display: none;
+  }
+  .lobby-bottom-left-stack {
+    max-width: min(290px, 46vw);
+    gap: 4px;
+  }
+  .lobby-tip-ticker {
+    padding: 4px 8px;
+    gap: 5px;
+    border-radius: 6px;
+  }
+  .lobby-tip-dot {
+    width: 5px;
+    height: 5px;
+  }
+  .lobby-tip-text {
+    font-size: 0.54rem;
+  }
+  .lobby-launch-dock {
+    gap: 5px;
+  }
+  .lobby-mode-card {
+    min-width: 148px;
+    padding: 5px 9px;
+    gap: 8px;
+    border-radius: 6px;
+  }
+  .lobby-mode-kicker {
+    font-size: 0.45rem;
+  }
+  .lobby-mode-label {
+    font-size: 0.55rem;
+  }
+  .lobby-mode-chevron svg {
+    width: 12px;
+    height: 12px;
+  }
+  .lobby-cta-row {
+    gap: 6px;
+  }
+  .lobby-continue-btn {
+    height: 34px;
+    padding: 0 13px;
+    border-radius: 6px;
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+  }
+  .lobby-start-btn {
+    min-width: 114px;
+    height: 35px;
+    padding: 0 18px;
+    border-radius: 6px;
+    font-size: 0.74rem;
+    letter-spacing: 0.14em;
+  }
+  .lobby-rotate-cue {
+    bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+    font-size: 0.52rem;
+  }
+  .lobby-friends-drawer {
+    top: calc(46px + env(safe-area-inset-top, 0px));
+    right: max(10px, env(safe-area-inset-right, 0px));
+    width: min(236px, calc(100vw - 24px));
+    max-height: calc(100vh - 125px);
+  }
+
+  /* --- 2. IN-GAME MOBILE HUD COMPACT SCALING (~25-30% SMALLER) --- */
+  #hud {
+    padding:
+      calc(8px + env(safe-area-inset-top, 0px))
+      calc(10px + env(safe-area-inset-right, 0px))
+      calc(8px + env(safe-area-inset-bottom, 0px))
+      calc(10px + env(safe-area-inset-left, 0px));
+  }
+  .hud-top-left {
+    gap: 4px;
+  }
+  .hud-radar-btn {
+    width: 62px;
+    height: 62px;
+    border-radius: 8px;
+  }
+  .hud-radar-floor-tag {
+    top: 2px;
+    left: 4px;
+    font-size: 0.48rem;
+  }
+  .hud-radar-btn .hud-map-key-badge {
+    right: 2px;
+    bottom: 2px;
+    font-size: 0.44rem;
+    padding: 1px 3px;
+  }
+  .hud-status-strip {
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: 0.55rem;
+  }
+  .hud-status-strip svg {
+    width: 10px;
+    height: 10px;
+  }
+  .hud-strip-item.noise-stat {
+    font-size: 0.52rem;
+  }
+  .hud-build-tag {
+    font-size: 0.46rem !important;
+  }
+  .hud-top-right {
+    gap: 5px;
+  }
+  .hud-fps-counter {
+    padding: 3px 6px;
+    border-radius: 6px;
+    font-size: 0.54rem;
+  }
+  .hud-settings-gear-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+  }
+  .hud-settings-gear-btn svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  /* Virtual Joystick, Auto-Sprint & Backpack */
+  .controls-overlay {
+    left: calc(16px + env(safe-area-inset-left, 0px));
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+  .joystick-base {
+    width: 86px;
+    height: 86px;
+  }
+  .joystick-knob {
+    width: 34px;
+    height: 34px;
+    top: 26px;
+    left: 26px;
+  }
+  .joystick-sprint-cue {
+    top: -16px;
+    font-size: 0.48rem;
+  }
+  .hud-autosprint-slot {
+    left: calc(42px + env(safe-area-inset-left, 0px));
+    bottom: calc(114px + env(safe-area-inset-bottom, 0px));
+  }
+  .autosprint-circle-btn,
+  .backpack-circle-btn {
+    width: 34px !important;
+    height: 34px !important;
+  }
+  .autosprint-circle-btn svg,
+  .backpack-circle-btn svg {
+    width: 15px;
+    height: 15px;
+  }
+  .hud-backpack-slot {
+    left: calc(114px + env(safe-area-inset-left, 0px));
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  .hud-backpack-drawer {
+    left: calc(14px + env(safe-area-inset-left, 0px));
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    width: min(240px, calc(100vw - 28px));
+    max-height: 190px;
+  }
+
+  /* Bottom-Right Action Buttons (Hand/Interact, Jump, Crouch, Kulhad, Bhabhut) */
+  .hud-right-controls.hud-ff-arc {
+    width: 174px;
+    height: 168px;
+  }
+  .hud-circle-primary,
+  body.controls-mode-mobile .hud-circle-primary,
+  body.touch-device:not(.controls-mode-pc) .hud-circle-primary {
+    width: 46px !important;
+    height: 46px !important;
+  }
+  .hud-circle-primary svg {
+    width: 19px;
+    height: 19px;
+  }
+  .hud-circle-btn:not(.hud-circle-primary):not(.hud-circle-sm),
+  body.controls-mode-mobile .hud-circle-btn:not(.hud-circle-primary):not(.hud-circle-sm),
+  body.touch-device:not(.controls-mode-pc) .hud-circle-btn:not(.hud-circle-primary):not(.hud-circle-sm) {
+    width: 38px !important;
+    height: 38px !important;
+  }
+  .hud-circle-btn:not(.hud-circle-primary):not(.hud-circle-sm) svg {
+    width: 16px;
+    height: 16px;
+  }
+  .hud-circle-sm {
+    width: 33px !important;
+    height: 33px !important;
+  }
+  .hud-circle-sm svg {
+    width: 14px;
+    height: 14px;
+  }
+  .hud-ff-arc .ff-arc-interact {
+    right: 16px;
+    bottom: 20px;
+  }
+  .hud-ff-arc .ff-arc-jump {
+    right: 14px;
+    bottom: 92px;
+  }
+  .hud-ff-arc .ff-arc-crouch {
+    right: 78px;
+    bottom: 14px;
+  }
+  .hud-ff-arc .ff-arc-kulhad {
+    right: 66px;
+    bottom: 84px;
+  }
+  .hud-ff-arc .ff-arc-bhabhut {
+    right: 110px;
+    bottom: 56px;
+  }
+
+  /* Small Story Pause/Skip & Compact Object Interaction Hints */
+  .skip-overlay {
+    bottom: 10px;
+    right: 12px;
+  }
+  .skip-btn {
+    padding: 4px 9px;
+    font-size: 0.62rem;
+  }
+  .hud-item-toast {
+    top: 46px;
+    min-width: 160px;
+    max-width: min(310px, 76vw);
+    padding: 6px 12px;
+    border-radius: 8px;
+  }
+  .hud-item-toast-title {
+    font-size: 0.66rem;
+  }
+  .hud-item-toast-subtitle {
+    font-size: 0.56rem;
+  }
+  .hide-prompt-banner {
+    padding: 5px 10px;
+    font-size: 0.64rem;
+    bottom: 54px;
+  }
+
+  /* Settings & Profile Modals on Mobile Landscape */
   .pro-settings-body {
-    grid-template-columns: 124px 1fr;
+    grid-template-columns: 120px 1fr;
   }
   .pro-side-tab {
-    font-size: 0.68rem;
+    font-size: 0.66rem;
     padding: 0 8px;
   }
   .pro-setting-row {
@@ -7719,49 +8047,7 @@ body.notch-safe-off .lobby-bottom-bar {
     grid-template-columns: 1fr;
   }
   .profile-3d-viewport {
-    height: 220px;
-  }
-  .lobby-left-sidebar {
-    gap: 6px;
-  }
-  .lobby-side-btn {
-    width: 62px;
-    min-height: 48px;
-    padding: 6px 4px;
-  }
-  .lobby-side-label {
-    font-size: 0.52rem;
-  }
-  .lobby-bottom-brand {
-    display: none;
-  }
-  .lobby-bottom-left-stack {
-    max-width: 48vw;
-  }
-  .lobby-bottom-bar {
-    justify-content: space-between;
-  }
-  .lobby-rotate-cue {
-    bottom: calc(114px + env(safe-area-inset-bottom, 0px));
-  }
-}
-
-@media (max-height: 460px) {
-  .lobby-left-sidebar {
-    top: 52%;
-    gap: 5px;
-  }
-  .lobby-side-btn {
-    width: 64px;
-    min-height: 44px;
-    padding: 5px 4px;
-    gap: 3px;
-  }
-  .lobby-side-label {
-    font-size: 0.52rem;
-  }
-  .lobby-bottom-brand {
-    display: none;
+    height: 190px;
   }
 }
 

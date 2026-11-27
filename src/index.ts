@@ -1145,7 +1145,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     vnPhotoCanvas.classList.remove('hidden');
     vnTopBar.classList.add('hidden');
-    vnTextStage.classList.remove('hidden');
+    vnTextStage.classList.add('hidden');
     vnControlsBar.classList.add('hidden');
     skipOverlay.classList.remove('hidden');
     menuScreen.classList.add('hidden');
@@ -2193,15 +2193,8 @@ document.addEventListener('DOMContentLoaded', () => {
       cutsceneLetterboxTop.classList.toggle('hidden', !showBars);
       cutsceneLetterboxBottom.classList.toggle('hidden', !showBars);
     }
-    if (entrySubtitleBar && entrySubtitleSpeakerEl && entrySubtitleTextEl) {
-      const hasSubtitle = Boolean(game.entrySubtitleText);
-      entrySubtitleBar.classList.toggle('hidden', !hasSubtitle);
-      entrySubtitleBar.classList.toggle(
-        'rukmini-mode',
-        game.entrySubtitleRukmini,
-      );
-      entrySubtitleSpeakerEl.textContent = game.entrySubtitleSpeaker;
-      entrySubtitleTextEl.textContent = game.entrySubtitleText;
+    if (entrySubtitleBar) {
+      entrySubtitleBar.classList.add('hidden');
     }
 
     // Update compact relic counter (icon + 0/4)
@@ -4693,20 +4686,20 @@ document.addEventListener('DOMContentLoaded', () => {
   let joystickMouseActive = false;
   let joyCenterX = 0;
   let joyCenterY = 0;
-  const JOY_MAX_RADIUS = 38;
+  let joyMaxRadius = 38;
 
   const updateJoystickFromCoords = (clientX: number, clientY: number) => {
     const dx = clientX - joyCenterX;
     const dy = clientY - joyCenterY;
     const rawDist = Math.hypot(dx, dy);
-    const clampedDist = Math.min(JOY_MAX_RADIUS, rawDist);
+    const clampedDist = Math.min(joyMaxRadius, rawDist);
     const angle = Math.atan2(dy, dx);
     const kx = Math.cos(angle) * clampedDist;
     const ky = Math.sin(angle) * clampedDist;
     joystickKnob.style.transform = `translate(${kx}px, ${ky}px)`;
 
-    const normX = kx / JOY_MAX_RADIUS;
-    const normY = ky / JOY_MAX_RADIUS;
+    const normX = kx / joyMaxRadius;
+    const normY = ky / joyMaxRadius;
     game.moveInput.joyX = normX;
     game.moveInput.joyY = normY;
 
@@ -4736,6 +4729,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const rect = joystick.getBoundingClientRect();
     joyCenterX = rect.left + rect.width / 2;
     joyCenterY = rect.top + rect.height / 2;
+    joyMaxRadius = Math.max(24, Math.round(rect.width * 0.31));
     game.resumeSpatialAudio();
     updateJoystickFromCoords(clientX, clientY);
   };
