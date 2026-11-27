@@ -4769,8 +4769,18 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastLookTouchY = 0;
   const TOUCH_LOOK_SENSITIVITY = 0.0046;
 
+  const isTouchInsideModalOrScroll = (target: EventTarget | null): boolean => {
+    if (!(target instanceof Element)) return false;
+    return Boolean(
+      target.closest(
+        '.modal-scroll, [role="dialog"], .modal-backdrop, .ig-settings-card, .pro-settings-card, .pro-settings-content, .lobby-archive-card, .lobby-archive-body, .privacy-modal-card, .privacy-modal-body, .profile-modal-card, .profile-modal-body',
+      ),
+    );
+  };
+
   const isHudInteractiveTarget = (target: EventTarget | null): boolean => {
     if (!(target instanceof Element)) return false;
+    if (isTouchInsideModalOrScroll(target)) return true;
     return Boolean(
       target.closest(
         'button, input, select, textarea, a, .joystick-base, .controls-overlay, .hud-autosprint-slot, .hud-backpack-slot, .hud-backpack-drawer, .hud-circle-slot, .hud-radar-btn, .hud-map-icon-btn, #hud-minimap-container, .modal-backdrop, .modal-card, .ig-settings-card, #hud-layout-editor-overlay',
@@ -4781,6 +4791,9 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener(
     'touchstart',
     (e: TouchEvent) => {
+      if (isTouchInsideModalOrScroll(e.target)) {
+        return;
+      }
       if (
         game.gameState !== 'playing' ||
         game.isAnyBlockingOverlayOpen()
@@ -4794,7 +4807,12 @@ document.addEventListener('DOMContentLoaded', () => {
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
         if (t.identifier === joystickTouchId) continue;
-        if (isHudInteractiveTarget(t.target)) continue;
+        if (
+          isTouchInsideModalOrScroll(t.target) ||
+          isHudInteractiveTarget(t.target)
+        ) {
+          continue;
+        }
 
         touchedGameCanvas = true;
 
@@ -4822,6 +4840,9 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener(
     'touchmove',
     (e: TouchEvent) => {
+      if (isTouchInsideModalOrScroll(e.target)) {
+        return;
+      }
       if (
         game.gameState !== 'playing' ||
         game.isAnyBlockingOverlayOpen()
@@ -4831,6 +4852,9 @@ document.addEventListener('DOMContentLoaded', () => {
       let handled = false;
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
+        if (isTouchInsideModalOrScroll(t.target)) {
+          continue;
+        }
         if (joystickTouchId !== null && t.identifier === joystickTouchId) {
           updateJoystickFromCoords(t.clientX, t.clientY);
           handled = true;
@@ -4845,7 +4869,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (
         handled ||
-        (e.touches.length >= 2 && !isHudInteractiveTarget(e.target))
+        (e.touches.length >= 2 &&
+          !isTouchInsideModalOrScroll(e.target) &&
+          !isHudInteractiveTarget(e.target))
       ) {
         e.preventDefault();
       }

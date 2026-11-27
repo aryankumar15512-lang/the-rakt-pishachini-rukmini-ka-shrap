@@ -4625,18 +4625,25 @@ body.hud-layout-customized .hud-custom-placed {
 .ig-settings-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding-top: 12px;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.09);
+  flex-shrink: 0;
 }
 
 .ig-footer-btn {
-  flex: 1;
-  padding: 11px 14px;
-  border-radius: 9px;
-  font-size: 0.86rem;
+  flex: 0 0 auto;
+  min-width: 112px;
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 7px;
+  font-size: 0.76rem;
   font-weight: 800;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   border: 1px solid transparent;
   transition:
@@ -6223,8 +6230,12 @@ body.hud-layout-customized .hud-custom-placed {
   grid-template-columns: 260px 1fr;
   gap: 20px;
   padding: 18px 20px 22px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 
 .profile-3d-column {
@@ -6397,6 +6408,9 @@ body.hud-layout-customized .hud-custom-placed {
 .ig-settings-card.pro-settings-card {
   width: min(820px, 95vw);
   max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background: linear-gradient(180deg, #14090c 0%, #0a0507 100%);
   border: 1px solid rgba(217, 170, 108, 0.34);
   font-family: 'Plus Jakarta Sans', sans-serif;
@@ -6405,8 +6419,10 @@ body.hud-layout-customized .hud-custom-placed {
 .pro-settings-body {
   display: grid;
   grid-template-columns: 186px 1fr;
-  min-height: 360px;
-  max-height: calc(90vh - 144px);
+  grid-template-rows: minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  max-height: calc(90vh - 120px);
   overflow: hidden;
 }
 
@@ -6417,6 +6433,11 @@ body.hud-layout-customized .hud-custom-placed {
   padding: 12px 10px;
   background: rgba(6, 3, 4, 0.56);
   border-right: 1px solid rgba(255, 255, 255, 0.08);
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 
 .pro-side-tab {
@@ -6447,10 +6468,20 @@ body.hud-layout-customized .hud-custom-placed {
   color: #fef3c7;
 }
 
+.modal-scroll,
 .pro-settings-content {
-  padding: 14px 18px 18px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+  overscroll-behavior: contain;
+  padding-bottom: 16px;
+}
+
+.pro-settings-content {
+  height: 100%;
+  padding: 14px 18px 20px;
 }
 
 .pro-tab-panel {
@@ -6556,91 +6587,110 @@ body.hud-layout-customized .hud-custom-placed {
   aspect-ratio: 16 / 9;
   border-radius: 7px;
   background: linear-gradient(180deg, #160c10, #090507);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .hud-mini-preview span {
   position: absolute;
-  border: 1px solid rgba(255, 255, 255, 0.42);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.45);
   background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 245, 232, 0.88);
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+}
+
+.hud-mini-preview span svg {
+  width: 58%;
+  height: 58%;
+  pointer-events: none;
+  flex-shrink: 0;
 }
 
 .hud-mini-preview .hmp-map {
-  left: 6%;
-  top: 9%;
-  width: 16%;
-  height: 28%;
-  border-radius: 3px;
-  border-color: rgba(251, 191, 36, 0.55);
+  left: 5%;
+  top: 8%;
+  width: 14%;
+  aspect-ratio: 1 / 1;
+  border-radius: 4px;
+  border-color: rgba(251, 191, 36, 0.62);
+  color: #fde68a;
 }
 
 .hud-mini-preview .hmp-gear {
-  right: 6%;
-  top: 9%;
+  right: 5%;
+  top: 8%;
   width: 9%;
-  height: 16%;
-  border-radius: 3px;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
 }
 
 .hud-mini-preview .hmp-joy {
-  left: 7%;
-  bottom: 10%;
-  width: 21%;
-  height: 36%;
+  left: 6%;
+  bottom: 9%;
+  width: 18%;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
+  border-color: rgba(255, 255, 255, 0.52);
 }
 
 .hud-mini-preview .hmp-sprint {
-  left: 13%;
-  bottom: 51%;
+  left: 23%;
+  bottom: 43%;
   width: 9%;
-  height: 16%;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
-  border-color: rgba(251, 191, 36, 0.65);
+  border-color: rgba(251, 191, 36, 0.72);
+  color: #fde68a;
 }
 
 .hud-mini-preview .hmp-bag {
-  left: 31%;
-  bottom: 11%;
+  left: 27%;
+  bottom: 9%;
   width: 9%;
-  height: 16%;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
 }
 
 .hud-mini-preview .hmp-act-main {
-  right: 7%;
-  bottom: 12%;
-  width: 15%;
-  height: 26%;
+  right: 6%;
+  bottom: 10%;
+  width: 14%;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
   border-color: #ef4444;
-  background: rgba(220, 38, 38, 0.28);
+  background: rgba(220, 38, 38, 0.3);
+  color: #fecaca;
 }
 
 .hud-mini-preview .hmp-act-1 {
-  right: 7%;
-  bottom: 45%;
-  width: 10%;
-  height: 18%;
+  right: 6%;
+  bottom: 46%;
+  width: 9.5%;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
 }
 
 .hud-mini-preview .hmp-act-2 {
-  right: 26%;
-  bottom: 11%;
-  width: 10%;
-  height: 18%;
+  right: 23%;
+  bottom: 10%;
+  width: 9.5%;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
 }
 
 .hud-mini-preview.is-compact .hmp-act-1 {
-  right: 17%;
-  bottom: 52%;
+  right: 16%;
+  bottom: 50%;
 }
 
 .hud-mini-preview.is-compact .hmp-act-2 {
-  right: 28%;
+  right: 26%;
   bottom: 24%;
 }
 
@@ -6818,6 +6868,9 @@ body.hud-layout-customized .hud-custom-placed {
 /* Privacy Policy Modal */
 .privacy-modal-card {
   width: min(520px, 92vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
   border-radius: 12px;
   background: linear-gradient(180deg, #160a0d 0%, #0b0507 100%);
   border: 1px solid rgba(217, 170, 108, 0.36);
@@ -6831,6 +6884,12 @@ body.hud-layout-customized .hud-custom-placed {
   font-size: 0.86rem;
   line-height: 1.6;
   color: rgba(244, 232, 222, 0.88);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 
 .privacy-modal-body p {
@@ -7120,8 +7179,12 @@ body.notch-safe-off .lobby-bottom-bar {
 
 .lobby-archive-body {
   padding: 16px 20px 22px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -8065,12 +8128,20 @@ body.notch-safe-off .lobby-bottom-bar {
   }
   .pro-settings-body {
     grid-template-columns: 118px 1fr;
+    grid-template-rows: minmax(0, 1fr);
+    flex: 1;
     min-height: 0;
-    max-height: calc(92vh - 92px);
+    max-height: calc(92vh - 76px);
+    overflow: hidden;
   }
   .pro-settings-sidebar {
     padding: 6px;
     gap: 3px;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    overscroll-behavior: contain;
   }
   .pro-side-tab {
     min-height: 30px;
@@ -8080,7 +8151,14 @@ body.notch-safe-off .lobby-bottom-bar {
     letter-spacing: 0.07em;
   }
   .pro-settings-content {
-    padding: 8px 10px;
+    flex: 1;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+    padding: 8px 10px 18px;
   }
   .pro-tab-panel,
   .pro-subpanel {
@@ -8105,7 +8183,7 @@ body.notch-safe-off .lobby-bottom-bar {
   .hud-preset-card {
     padding: 6px 8px;
     gap: 4px;
-    max-height: 126px;
+    max-height: 132px;
     border-radius: 7px;
   }
   .hud-preset-title {
@@ -8115,9 +8193,12 @@ body.notch-safe-off .lobby-bottom-bar {
     font-size: 0.5rem;
   }
   .hud-mini-preview {
-    aspect-ratio: auto;
-    height: 56px;
-    max-height: 62px;
+    width: 100%;
+    max-width: 150px;
+    aspect-ratio: 16 / 9;
+    height: auto;
+    max-height: none;
+    margin: 0 auto;
     border-radius: 5px;
   }
   .hud-preset-desc {
@@ -8125,8 +8206,8 @@ body.notch-safe-off .lobby-bottom-bar {
     line-height: 1.18;
   }
   .pro-custom-hud-cta {
-    height: 30px;
-    font-size: 0.68rem;
+    height: 28px;
+    font-size: 0.66rem;
     border-radius: 6px;
     letter-spacing: 0.14em;
   }
@@ -8210,13 +8291,16 @@ body.notch-safe-off .lobby-bottom-bar {
     border-radius: 5px;
   }
   .ig-settings-footer {
-    padding-top: 6px;
-    gap: 8px;
+    padding-top: 5px;
+    gap: 6px;
+    justify-content: flex-end;
   }
   .ig-footer-btn {
-    height: 32px;
-    padding: 0 10px;
-    font-size: 0.66rem;
+    flex: 0 0 auto;
+    min-width: 86px;
+    height: 26px;
+    padding: 0 12px;
+    font-size: 0.62rem;
     border-radius: 6px;
     display: inline-flex;
     align-items: center;

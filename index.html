@@ -637,7 +637,7 @@
           </button>
         </div>
 
-        <div class="profile-modal-body">
+        <div class="profile-modal-body modal-scroll">
           <!-- Left: Live 3D Character Showcase (Aarav) -->
           <div class="profile-3d-column">
             <div id="profile-3d-viewport" class="profile-3d-viewport"></div>
@@ -727,7 +727,7 @@
             ✕
           </button>
         </div>
-        <div class="lobby-archive-body">
+        <div class="lobby-archive-body modal-scroll">
           <div class="survivor-cards-grid">
             <article class="survivor-card is-playable">
               <div class="survivor-card-top">
@@ -797,7 +797,7 @@
             ✕
           </button>
         </div>
-        <div class="lobby-archive-body">
+        <div class="lobby-archive-body modal-scroll">
           <div class="gear-cards-grid">
             <article class="gear-card">
               <div class="gear-card-head">
@@ -888,7 +888,7 @@
             ✕
           </button>
         </div>
-        <div class="lobby-archive-body">
+        <div class="lobby-archive-body modal-scroll">
           <blockquote class="diary-excerpt">
             "On the wedding night of 1992, betrayal blinded her eyes—yet sharpened her ears to every trembling footstep inside the 32 rooms. When the silver payal jingles close, freeze your breath and become stone."
           </blockquote>
@@ -933,7 +933,7 @@
             ✕
           </button>
         </div>
-        <div class="lobby-archive-body">
+        <div class="lobby-archive-body modal-scroll">
           <div class="badges-grid">
             <div class="badge-card" data-badge-id="firstEscape">
               <div class="badge-icon-ring" aria-hidden="true">
@@ -1008,7 +1008,7 @@
             ✕
           </button>
         </div>
-        <div class="lobby-archive-body mode-picker-body">
+        <div class="lobby-archive-body mode-picker-body modal-scroll">
           <!-- Mode Tags -->
           <div class="mode-section">
             <div class="diary-section-title">GAME MODE</div>
@@ -1088,7 +1088,7 @@
             ✕
           </button>
         </div>
-        <div class="lobby-archive-body">
+        <div class="lobby-archive-body modal-scroll">
           <article class="mail-card">
             <div class="mail-card-head">
               <div>
@@ -1126,7 +1126,7 @@
             ✕
           </button>
         </div>
-        <div class="lobby-archive-body">
+        <div class="lobby-archive-body modal-scroll">
           <article class="news-card">
             <div class="news-card-head">
               <h3 class="news-card-title">Demo v1.0 Patch Notes</h3>
@@ -1880,7 +1880,7 @@
             </button>
           </nav>
 
-          <div class="pro-settings-content">
+          <div class="pro-settings-content modal-scroll">
             <!-- TAB 1: IN-MATCH (3 Sub-Tabs: HUD | CONTROLS | SENSITIVITY) -->
             <div id="pro-panel-inmatch" class="pro-tab-panel" role="tabpanel">
               <div class="pro-subtabs-bar" role="tablist" aria-label="In-Match Sub-Tabs">
@@ -1904,14 +1904,49 @@
                       <span class="hud-preset-state">ACTIVE</span>
                     </div>
                     <div class="hud-mini-preview" aria-hidden="true">
-                      <span class="hmp-map"></span>
-                      <span class="hmp-gear"></span>
-                      <span class="hmp-joy"></span>
-                      <span class="hmp-sprint"></span>
-                      <span class="hmp-bag"></span>
-                      <span class="hmp-act-main"></span>
-                      <span class="hmp-act-1"></span>
-                      <span class="hmp-act-2"></span>
+                      <span class="hmp-map" title="Mini-Map">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+                        </svg>
+                      </span>
+                      <span class="hmp-gear" title="Settings">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="12" cy="12" r="3.5" />
+                          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+                        </svg>
+                      </span>
+                      <span class="hmp-joy" title="Joystick">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="12" cy="12" r="3.5" fill="currentColor" />
+                          <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+                        </svg>
+                      </span>
+                      <span class="hmp-sprint" title="Sprint">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                          <path d="M13 4v6l4 2M7 20l3-6 4 2 3-5" />
+                        </svg>
+                      </span>
+                      <span class="hmp-bag" title="Backpack">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="6" y="7" width="12" height="13" rx="3" />
+                          <path d="M9 7V5a3 3 0 0 1 6 0v2" />
+                        </svg>
+                      </span>
+                      <span class="hmp-act-main" title="Interact">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M18 11V6a2 2 0 0 0-4 0v4M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8a6 6 0 0 0 12 0v-3Z" />
+                        </svg>
+                      </span>
+                      <span class="hmp-act-1" title="Jump">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                          <path d="m6 15 6-6 6 6" />
+                        </svg>
+                      </span>
+                      <span class="hmp-act-2" title="Crouch">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </span>
                     </div>
                     <div class="hud-preset-desc">Classic Horror Arc · Standard Thumb Reach</div>
                   </button>
@@ -1922,14 +1957,49 @@
                       <span class="hud-preset-state">SELECT</span>
                     </div>
                     <div class="hud-mini-preview is-compact" aria-hidden="true">
-                      <span class="hmp-map"></span>
-                      <span class="hmp-gear"></span>
-                      <span class="hmp-joy"></span>
-                      <span class="hmp-sprint"></span>
-                      <span class="hmp-bag"></span>
-                      <span class="hmp-act-main"></span>
-                      <span class="hmp-act-1"></span>
-                      <span class="hmp-act-2"></span>
+                      <span class="hmp-map" title="Mini-Map">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+                        </svg>
+                      </span>
+                      <span class="hmp-gear" title="Settings">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="12" cy="12" r="3.5" />
+                          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+                        </svg>
+                      </span>
+                      <span class="hmp-joy" title="Joystick">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="12" cy="12" r="3.5" fill="currentColor" />
+                          <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+                        </svg>
+                      </span>
+                      <span class="hmp-sprint" title="Sprint">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                          <path d="M13 4v6l4 2M7 20l3-6 4 2 3-5" />
+                        </svg>
+                      </span>
+                      <span class="hmp-bag" title="Backpack">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="6" y="7" width="12" height="13" rx="3" />
+                          <path d="M9 7V5a3 3 0 0 1 6 0v2" />
+                        </svg>
+                      </span>
+                      <span class="hmp-act-main" title="Interact">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M18 11V6a2 2 0 0 0-4 0v4M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8a6 6 0 0 0 12 0v-3Z" />
+                        </svg>
+                      </span>
+                      <span class="hmp-act-1" title="Jump">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                          <path d="m6 15 6-6 6 6" />
+                        </svg>
+                      </span>
+                      <span class="hmp-act-2" title="Crouch">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </span>
                     </div>
                     <div class="hud-preset-desc">Compact Claw Layout · High-Visibility Center</div>
                   </button>
@@ -2288,7 +2358,7 @@
             ✕
           </button>
         </div>
-        <div class="privacy-modal-body">
+        <div class="privacy-modal-body modal-scroll">
           <p><strong>QWG Aryan Studios — The Rakt Pishachini: Rukmini Ka Shrap (v1.0.0 DEMO)</strong></p>
           <p>
             <strong>Offline Single-Player Privacy:</strong> This demo runs locally on your device. Your player nickname, generated local UID, survival stats, unlocked badges, custom HUD layout, and display/audio settings are saved exclusively in on-device browser storage (<code>localStorage</code>). We do not collect, track, sell, or share personal information with third-party advertisers.
