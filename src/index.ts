@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import * as xb from 'xrblocks';
 import { RaktPishachiniGame } from './RaktPishachiniGame.ts';
 import {
@@ -364,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ) {
           brightnessPercent = Math.max(
             80,
-            Math.min(150, Math.round(parsed.brightnessPercent)),
+            Math.min(130, Math.round(parsed.brightnessPercent)),
           );
         }
         if (
@@ -1259,12 +1260,105 @@ document.addEventListener('DOMContentLoaded', () => {
     lobbyScene3D = null;
   };
 
-  let xrGameplayInitPromise: Promise<void> | null = null;
-  const ensureXRGameplayInitialized = async () => {
+  const webglErrorFallback = document.getElementById('webgl-error-fallback');
+  const webglErrorMessageEl = document.getElementById('webgl-error-message');
+  const webglErrorReloadBtn = document.getElementById('webgl-error-reload-btn');
+
+  webglErrorReloadBtn?.addEventListener('click', () => {
+    window.location.reload();
+  });
+
+  const showWebGLErrorFallback = (err: unknown) => {
+    const rawMsg =
+      err instanceof Error
+        ? `${err.name}: ${err.message}`
+        : typeof err === 'string'
+          ? err
+          : String(err || 'Unknown WebGL initialization error');
+    console.error('[3D Gameplay WebGL Error]', err);
+    if (webglErrorMessageEl) {
+      webglErrorMessageEl.textContent = rawMsg;
+    }
+    webglErrorFallback?.classList.remove('hidden');
+    hud.classList.add('hidden');
+    menuScreen.classList.add('hidden');
+    storyScreen.classList.add('hidden');
+    optionsModal.classList.add('hidden');
+    document.getElementById('pause-modal')?.classList.add('hidden');
+  };
+
+  game.onWebGLContextError = (msg: string) => {
+    showWebGLErrorFallback(msg);
+  };
+
+  const hudBuildTagEl = document.getElementById('hud-build-tag');
+  const updateDiagnosticBuildBadge = () => {
+    if (!hudBuildTagEl) return;
+    const canvas = game.getGameCanvas();
+    const cw = canvas ? canvas.width : window.innerWidth || 0;
+    const ch = canvas ? canvas.height : window.innerHeight || 0;
+    const objCount = xb.core.scene ? xb.core.scene.children.length : 0;
+    const text = `v1.0.3 | ${cw}x${ch} | objs:${objCount}`;
+    if (hudBuildTagEl.textContent !== text) {
+      hudBuildTagEl.textContent = text;
+    }
+  };
+
+  let viewportListenersBound = false;
+  const bindGameplayViewportListeners = () => {
+    if (viewportListenersBound) return;
+    viewportListenersBound = true;
+    const handleViewportChange = () => {
+      game.syncViewportSize();
+      updateDiagnosticBuildBadge();
+      window.setTimeout(() => {
+        game.syncViewportSize();
+        updateDiagnosticBuildBadge();
+      }, 150);
+    };
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('orientationchange', handleViewportChange);
+  };
+
+  let xrGameplayInitPromise: Promise<boolean> | null = null;
+  const ensureXRGameplayInitialized = async (): Promise<boolean> => {
     disposeLobbyScene3D();
     cutsceneDirector.dispose();
+    bindGameplayViewportListeners();
     if (!xrGameplayInitPromise) {
+      const host =
+        document.getElementById('game-canvas-host') || document.body;
+      host.style.position = 'fixed';
+      host.style.inset = '0';
+      host.style.width = '100vw';
+      host.style.height = '100vh';
+      host.style.display = 'block';
+      host.style.zIndex = '1';
+      host.style.backgroundColor = '#0b101d';
+      host.style.pointerEvents = 'auto';
+
+      // Create a fresh <canvas> inside #game-canvas-host without calling forceContextLoss()
+      const existingCanvas = document.getElementById('game-webgl-canvas');
+      if (existingCanvas && existingCanvas.parentNode) {
+        existingCanvas.parentNode.removeChild(existingCanvas);
+      }
+      const gameCanvas = document.createElement('canvas');
+      gameCanvas.id = 'game-webgl-canvas';
+      gameCanvas.className = 'game-webgl-canvas';
+      const initW = window.innerWidth || 800;
+      const initH = window.innerHeight || 450;
+      gameCanvas.width = initW;
+      gameCanvas.height = initH;
+      gameCanvas.style.cssText =
+        'position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; z-index: 1; background-color: #0b101d; filter: none; touch-action: none;';
+      host.appendChild(gameCanvas);
+
       const options = new xb.Options();
+      options.canvas = gameCanvas;
+      options.antialias = !game.isMobileDevice();
+      options.stencil = false;
+      options.usePostprocessing = false;
+      options.xrButton.enabled = false;
       options.reticles.enabled = false;
       options.controllers.visualizeRays = false;
       options.setAppTitle('The Rakt Pishachini: Rukmini Ka Shrap');
@@ -1272,9 +1366,32 @@ document.addEventListener('DOMContentLoaded', () => {
         '1-4 Player Spatial WebXR & 3D Horror Survival in Thakur Mansion.',
       );
       xb.add(game);
-      xrGameplayInitPromise = xb
-        .init(options)
-        .then(() => {
+      xrGameplayInitPromise = (async () => {
+        try {
+          await xb.init(options);
+          const renderer = xb.core.renderer;
+          if (!(renderer instanceof THREE.WebGLRenderer)) {
+            throw new Error(
+              'WebGLRenderer failed to initialize for 3D gameplay.',
+            );
+          }
+          const gl = renderer.getContext();
+          if (!gl || gl.isContextLost()) {
+            throw new Error(
+              'WebGL rendering context is unavailable or lost on this device.',
+            );
+          }
+          const w = window.innerWidth || 800;
+          const h = window.innerHeight || 450;
+          renderer.setSize(w, h);
+          const cam = xb.core.camera as THREE.PerspectiveCamera | undefined;
+          if (cam) {
+            if (xb.core.scene && !cam.parent) {
+              xb.core.scene.add(cam);
+            }
+            cam.aspect = w / h;
+            cam.updateProjectionMatrix();
+          }
           game.applyGraphicsSettings(
             (gfxQualitySelect.value as 'ultra' | 'high' | 'medium' | 'low') ||
               'high',
@@ -1283,12 +1400,28 @@ document.addEventListener('DOMContentLoaded', () => {
           );
           game.setBrightness(brightnessPercent);
           game.syncViewportSize();
-        })
-        .catch((err) => {
-          console.warn('XR Blocks WebGL init fallback:', err);
-        });
+          updateDiagnosticBuildBadge();
+          return true;
+        } catch (err) {
+          xrGameplayInitPromise = null;
+          showWebGLErrorFallback(err);
+          return false;
+        }
+      })();
     }
-    await xrGameplayInitPromise;
+    const ok = await xrGameplayInitPromise;
+    if (!ok) return false;
+    const renderer = xb.core.renderer;
+    if (renderer instanceof THREE.WebGLRenderer) {
+      const w = window.innerWidth || 800;
+      const h = window.innerHeight || 450;
+      renderer.setSize(w, h);
+      const cam = xb.core.camera as THREE.PerspectiveCamera | undefined;
+      if (cam) {
+        cam.aspect = w / h;
+        cam.updateProjectionMatrix();
+      }
+    }
     game.applyGraphicsSettings(
       (gfxQualitySelect.value as 'ultra' | 'high' | 'medium' | 'low') || 'high',
       Number(fpsSettingSelect.value || 60),
@@ -1296,6 +1429,8 @@ document.addEventListener('DOMContentLoaded', () => {
     );
     game.setBrightness(brightnessPercent);
     game.syncViewportSize();
+    updateDiagnosticBuildBadge();
+    return true;
   };
 
   const playerHandView = document.getElementById('player-hand-view');
@@ -1304,12 +1439,20 @@ document.addEventListener('DOMContentLoaded', () => {
     pausedFromState = null;
     isStoryPaused = false;
     game.isHudLayoutEditorOpen = false;
-    await ensureXRGameplayInitialized();
-    // Ensure ALL launch, lobby, settings, and archive modal overlays are closed before gameplay
+    const ready = await ensureXRGameplayInitialized();
+    if (!ready) return;
+    // Reset any lingering blackout / flash state and hide ALL intro cutscene, loading & blackout overlays immediately
+    game.entryBlackoutOpacity = 0;
+    game.redLightningFlashOpacity = 0;
+    game.respawnWarningOpacity = 0;
+    game.isHaveliBlackout = false;
     const launchEl = document.getElementById('launch-sequence-overlay');
     if (launchEl) {
       launchEl.classList.remove('is-fading-out');
       launchEl.classList.add('hidden');
+      launchEl.style.display = 'none';
+      launchEl.style.opacity = '0';
+      launchEl.style.pointerEvents = 'none';
     }
     [
       'launch-disclaimer-modal',
@@ -1327,6 +1470,16 @@ document.addEventListener('DOMContentLoaded', () => {
       'sanctum-modal',
       'endgame-modal',
       'menu-status-notice',
+      'vn-blackout-final',
+      'intro-ending-overlay',
+    ].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.add('hidden');
+        el.classList.remove('is-flashing', 'active', 'flash-active', 'is-fading-out');
+      }
+    });
+    [
       'options-lightning-flash',
       'vn-lightning-flash',
       'hud-red-lightning-flash',
@@ -1338,6 +1491,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (el) {
         el.classList.add('hidden');
         el.classList.remove('is-flashing', 'active', 'flash-active', 'is-fading-out');
+        el.style.opacity = '0';
+        el.style.pointerEvents = 'none';
       }
     });
     optionsLightningFlash.classList.remove('active', 'flash-active');
@@ -1375,11 +1530,22 @@ document.addEventListener('DOMContentLoaded', () => {
     pauseModal?.classList.add('hidden');
     pauseSkipStoryBtn?.classList.add('hidden');
     hud.classList.remove('hidden');
+    hud.style.zIndex = '10';
+    hud.style.pointerEvents = 'none';
+    hud.style.background = 'transparent';
     if (playerHandView) {
       playerHandView.classList.add('hidden');
     }
     game.syncViewportSize();
-    window.setTimeout(() => game.syncViewportSize(), 260);
+    updateDiagnosticBuildBadge();
+    window.setTimeout(() => {
+      game.syncViewportSize();
+      updateDiagnosticBuildBadge();
+    }, 150);
+    window.setTimeout(() => {
+      game.syncViewportSize();
+      updateDiagnosticBuildBadge();
+    }, 300);
     game.requestGamePointerLock();
     refreshHudState();
     addChatMessage(
@@ -1403,7 +1569,8 @@ document.addEventListener('DOMContentLoaded', () => {
     game.playerCount = 1;
     game.requiredItems = 4;
     game.matchStartTimeMs = Date.now();
-    await ensureXRGameplayInitialized();
+    const ready = await ensureXRGameplayInitialized();
+    if (!ready) return;
     game.resetMatch();
     await skipStoryToGame(false);
   };
@@ -1811,6 +1978,7 @@ document.addEventListener('DOMContentLoaded', () => {
   replayIntroBtn.addEventListener('click', () => startVisualNovelStory(0));
 
   function refreshHudState() {
+    updateDiagnosticBuildBadge();
     if (taskStatusEl) {
       taskStatusEl.textContent = game.taskStatusText;
     }
@@ -2777,7 +2945,7 @@ document.addEventListener('DOMContentLoaded', () => {
   proBrightnessSlider?.addEventListener('input', () => {
     const raw = Number(proBrightnessSlider.value);
     brightnessPercent = Number.isFinite(raw)
-      ? Math.max(80, Math.min(150, Math.round(raw)))
+      ? Math.max(80, Math.min(130, Math.round(raw)))
       : 100;
     if (proBrightnessValue) {
       proBrightnessValue.textContent = `${brightnessPercent}%`;
@@ -4142,7 +4310,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     game.requestImmediateDesktopPointerLock();
-    await ensureXRGameplayInitialized();
+    const ready = await ensureXRGameplayInitialized();
+    if (!ready) return;
     const loaded = game.loadProgressFromStorage();
     if (!loaded) {
       showMenuNotice("कोई सेव डेटा नहीं मिला! कृपया 'New Game' शुरू करें।");

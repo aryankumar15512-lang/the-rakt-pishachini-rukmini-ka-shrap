@@ -34,23 +34,24 @@ canvas {
 .game-canvas-host {
   position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-  background: #05070d !important;
-  background-color: #05070d !important;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+  background: #0b101d !important;
+  background-color: #0b101d !important;
   overflow: hidden;
   pointer-events: auto;
 }
 
 .game-webgl-canvas {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   display: block;
-  background: #05070d !important;
-  background-color: #05070d !important;
+  z-index: 1;
+  background: #0b101d !important;
+  background-color: #0b101d !important;
   filter: none;
   touch-action: none !important;
 }
@@ -1170,12 +1171,12 @@ h2.game-title {
 
 /* 3. Ultra-Clean Minimal Horror HUD */
 #hud {
-  position: absolute;
-  top: 0;
-  left: 0;
+  position: fixed;
+  inset: 0;
   width: 100%;
   height: 100%;
-  z-index: 12;
+  z-index: 10;
+  background: transparent !important;
   pointer-events: none;
   display: flex;
   flex-direction: column;
