@@ -186,9 +186,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 3400);
   };
 
-  const isMobilePerfDevice =
-    /Android|iPhone|iPad/i.test(navigator.userAgent) ||
-    window.innerWidth < 950;
+  const isMobile =
+    /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ||
+    ('ontouchstart' in window && navigator.maxTouchPoints > 0);
+  const isMobilePerfDevice = isMobile;
   let showFpsCounter = false;
   let shadowsEnabled = !isMobilePerfDevice;
   let brightnessPercent = 100;
@@ -1268,6 +1269,36 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.reload();
   });
 
+  const showMobileTopCenterError = (rawErr: unknown) => {
+    if (!isMobile) return;
+    const msg =
+      rawErr instanceof Error
+        ? `${rawErr.name}: ${rawErr.message}`
+        : typeof rawErr === 'string'
+          ? rawErr
+          : String(rawErr || 'Runtime Error');
+    const shortMsg = msg.replace(/\s+/g, ' ').trim().slice(0, 140);
+    if (!shortMsg) return;
+    let banner = document.getElementById('mobile-runtime-error-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'mobile-runtime-error-banner';
+      banner.style.cssText =
+        'position: fixed; top: 6px; left: 50%; transform: translateX(-50%); z-index: 99999; max-width: 90vw; padding: 4px 10px; border-radius: 6px; background: rgba(20, 0, 0, 0.88); border: 1px solid #ff3333; color: #ff3b3b; font-family: monospace; font-size: 11px; font-weight: 700; text-align: center; pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+      document.body.appendChild(banner);
+    }
+    banner.textContent = `ERR: ${shortMsg}`;
+  };
+
+  if (isMobile) {
+    window.addEventListener('error', (ev) => {
+      showMobileTopCenterError(ev.error || ev.message || 'JS Error');
+    });
+    window.addEventListener('unhandledrejection', (ev) => {
+      showMobileTopCenterError(ev.reason || 'Unhandled Rejection');
+    });
+  }
+
   const showWebGLErrorFallback = (err: unknown) => {
     const rawMsg =
       err instanceof Error
@@ -1276,6 +1307,7 @@ document.addEventListener('DOMContentLoaded', () => {
           ? err
           : String(err || 'Unknown WebGL initialization error');
     console.error('[3D Gameplay WebGL Error]', err);
+    showMobileTopCenterError(rawMsg);
     if (webglErrorMessageEl) {
       webglErrorMessageEl.textContent = rawMsg;
     }
@@ -1288,17 +1320,15 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   game.onWebGLContextError = (msg: string) => {
+    showMobileTopCenterError(msg);
     showWebGLErrorFallback(msg);
   };
 
   const hudBuildTagEl = document.getElementById('hud-build-tag');
   const updateDiagnosticBuildBadge = () => {
     if (!hudBuildTagEl) return;
-    const canvas = game.getGameCanvas();
-    const cw = canvas ? canvas.width : window.innerWidth || 0;
-    const ch = canvas ? canvas.height : window.innerHeight || 0;
-    const objCount = xb.core.scene ? xb.core.scene.children.length : 0;
-    const text = `v1.0.3 | ${cw}x${ch} | objs:${objCount}`;
+    const activeLightCount = game.getActiveLightCount();
+    const text = `v1.0.4 | ${isMobile ? 'MOB' : 'PC'} | L:${activeLightCount}`;
     if (hudBuildTagEl.textContent !== text) {
       hudBuildTagEl.textContent = text;
     }
@@ -1353,9 +1383,35 @@ document.addEventListener('DOMContentLoaded', () => {
         'position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; z-index: 1; background-color: #0b101d; filter: none; touch-action: none;';
       host.appendChild(gameCanvas);
 
+      // When isMobile is true, ensure the gameplay WebGL context & THREE.WebGLRenderer use:
+      // { antialias: false, powerPreference: 'default', precision: 'mediump', stencil: false, depth: true, alpha: false }
+      if (isMobile) {
+        const origGetContext = gameCanvas.getContext.bind(gameCanvas);
+        gameCanvas.getContext = ((
+          contextId: string,
+          attrs?: WebGLContextAttributes,
+        ) => {
+          if (
+            contextId === 'webgl2' ||
+            contextId === 'webgl' ||
+            contextId === 'experimental-webgl'
+          ) {
+            return origGetContext(contextId, {
+              ...(attrs || {}),
+              antialias: false,
+              powerPreference: 'default',
+              stencil: false,
+              depth: true,
+              alpha: false,
+            });
+          }
+          return origGetContext(contextId as '2d', attrs as CanvasRenderingContext2DSettings);
+        }) as typeof gameCanvas.getContext;
+      }
+
       const options = new xb.Options();
       options.canvas = gameCanvas;
-      options.antialias = !game.isMobileDevice();
+      options.antialias = !isMobile;
       options.stencil = false;
       options.usePostprocessing = false;
       options.xrButton.enabled = false;
@@ -1368,12 +1424,48 @@ document.addEventListener('DOMContentLoaded', () => {
       xb.add(game);
       xrGameplayInitPromise = (async () => {
         try {
+          if (isMobile) {
+            // Pre-initialize mobile-safe WebGLRenderer on gameCanvas with precision: 'mediump'
+            const mobileRenderer = new THREE.WebGLRenderer({
+              canvas: gameCanvas,
+              antialias: false,
+              powerPreference: 'default',
+              precision: 'mediump',
+              stencil: false,
+              depth: true,
+              alpha: false,
+            });
+            mobileRenderer.setPixelRatio(1);
+            mobileRenderer.shadowMap.enabled = false;
+            mobileRenderer.setClearColor(0x0b101d, 1);
+          }
           await xb.init(options);
           const renderer = xb.core.renderer;
           if (!(renderer instanceof THREE.WebGLRenderer)) {
             throw new Error(
               'WebGLRenderer failed to initialize for 3D gameplay.',
             );
+          }
+          if (isMobile) {
+            (renderer.capabilities as { precision?: string }).precision =
+              'mediump';
+            renderer.setPixelRatio(1);
+            renderer.shadowMap.enabled = false;
+            renderer.setClearColor(0x0b101d, 1);
+            renderer.debug.checkShaderErrors = true;
+            renderer.debug.onShaderError = (
+              glCtx,
+              _program,
+              glVertexShader,
+              glFragmentShader,
+            ) => {
+              const vLog = glCtx.getShaderInfoLog(glVertexShader)?.trim();
+              const fLog = glCtx.getShaderInfoLog(glFragmentShader)?.trim();
+              showMobileTopCenterError(
+                `ShaderError: ${fLog || vLog || 'GLSL compile/link failed'}`,
+              );
+            };
+            game.applyMobileGlobalSceneCleanup();
           }
           const gl = renderer.getContext();
           if (!gl || gl.isContextLost()) {
@@ -1399,11 +1491,15 @@ document.addEventListener('DOMContentLoaded', () => {
             shadowsEnabled,
           );
           game.setBrightness(brightnessPercent);
+          if (isMobile) {
+            game.applyMobileGlobalSceneCleanup();
+          }
           game.syncViewportSize();
           updateDiagnosticBuildBadge();
           return true;
         } catch (err) {
           xrGameplayInitPromise = null;
+          showMobileTopCenterError(err);
           showWebGLErrorFallback(err);
           return false;
         }
@@ -1413,6 +1509,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!ok) return false;
     const renderer = xb.core.renderer;
     if (renderer instanceof THREE.WebGLRenderer) {
+      if (isMobile) {
+        renderer.setPixelRatio(1);
+        renderer.shadowMap.enabled = false;
+      }
       const w = window.innerWidth || 800;
       const h = window.innerHeight || 450;
       renderer.setSize(w, h);
@@ -1428,6 +1528,9 @@ document.addEventListener('DOMContentLoaded', () => {
       shadowsEnabled,
     );
     game.setBrightness(brightnessPercent);
+    if (isMobile) {
+      game.applyMobileGlobalSceneCleanup();
+    }
     game.syncViewportSize();
     updateDiagnosticBuildBadge();
     return true;
@@ -4267,10 +4370,8 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const isMobileTouchDevice = (): boolean =>
-    window.innerWidth < 950 ||
-    window.matchMedia('(pointer: coarse)').matches ||
-    navigator.maxTouchPoints > 0 ||
-    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ||
+    ('ontouchstart' in window && navigator.maxTouchPoints > 0);
 
   const requestMobileFullscreenLandscape = async (): Promise<void> => {
     if (!isMobileTouchDevice()) return;

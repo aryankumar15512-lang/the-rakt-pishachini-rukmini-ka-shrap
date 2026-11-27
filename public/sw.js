@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rakt-pishachini-pwa-v4';
+const CACHE_NAME = 'rakt-pishachini-pwa-v5';
 
 const PRECACHE_URLS = [
   './',

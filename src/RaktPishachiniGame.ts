@@ -471,8 +471,10 @@ export class RaktPishachiniGame extends xb.Script {
   public cameraSensitivity = 1.0;
   public graphicsQuality: 'low' | 'medium' | 'high' | 'ultra' =
     typeof navigator !== 'undefined' &&
-    (/Android|iPhone|iPad/i.test(navigator.userAgent) ||
-      (typeof window !== 'undefined' && window.innerWidth < 950))
+    (/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ||
+      (typeof window !== 'undefined' &&
+        'ontouchstart' in window &&
+        navigator.maxTouchPoints > 0))
       ? 'low'
       : 'high';
   public moveInput = {
@@ -532,10 +534,13 @@ export class RaktPishachiniGame extends xb.Script {
   }
 
   public isMobileDevice(): boolean {
-    return (
-      /Android|iPhone|iPad/i.test(navigator.userAgent) ||
-      window.innerWidth < 950
-    );
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+      return false;
+    }
+    const isMobile =
+      /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ||
+      ('ontouchstart' in window && navigator.maxTouchPoints > 0);
+    return isMobile;
   }
 
   /**
@@ -797,6 +802,9 @@ export class RaktPishachiniGame extends xb.Script {
     this.setupLightingAndEnvironment();
     this.clearSimulatorDaytimeSkybox();
     this.buildThakurMansion();
+    if (this.isMobileDevice()) {
+      this.applyMobileGlobalSceneCleanup();
+    }
     this.setupKeyboardInput();
   }
 
@@ -864,12 +872,11 @@ export class RaktPishachiniGame extends xb.Script {
       renderer.setClearColor(0x0b101d, 1);
       renderer.autoClear = true;
       renderer.autoClearColor = true;
-      if (renderer.domElement) {
-        renderer.domElement.style.backgroundColor = '#0b101d';
-        renderer.domElement.style.filter =
-          clampedBright === 100 ? 'none' : `brightness(${clampedBright}%)`;
-      }
-      if (isSmoothOrMobile) {
+      if (isMobile) {
+        (renderer.capabilities as { precision?: string }).precision = 'mediump';
+        renderer.setPixelRatio(1);
+        renderer.shadowMap.enabled = false;
+      } else if (isSmoothOrMobile) {
         renderer.setPixelRatio(1);
         renderer.shadowMap.enabled = false;
       } else {
@@ -877,9 +884,14 @@ export class RaktPishachiniGame extends xb.Script {
         renderer.shadowMap.enabled = this.shadowsEnabled;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       }
+      if (renderer.domElement) {
+        renderer.domElement.style.backgroundColor = '#0b101d';
+        renderer.domElement.style.filter =
+          clampedBright === 100 ? 'none' : `brightness(${clampedBright}%)`;
+      }
       scene.environment = null;
 
-      // Remove any unexpected default Three.js lights added to scene so mobile keeps clean 4-light setup
+      // Remove any unexpected default Three.js lights added to scene so mobile keeps clean 3-light setup
       if (isMobile) {
         for (let i = scene.children.length - 1; i >= 0; i--) {
           if ((scene.children[i] as THREE.Light).isLight) {
@@ -971,27 +983,35 @@ export class RaktPishachiniGame extends xb.Script {
       scene.fog = _nightHorizonFog;
     }
 
-    // Brighter, mobile-safe night visibility lighting so SUV, road, gate, and Thakur Haveli render clearly
-    this.ambientLight = new THREE.AmbientLight(0x4a5d82, 1.1);
-    this.add(this.ambientLight);
+    // On mobile: keep ONLY 1 AmbientLight(0x556688, 1.2), 1 DirectionalLight(0x99bbff, 0.9), and 1 playerFlashlight SpotLight = 3 lights max!
+    // On PC desktop: keep existing PC lighting 100% unchanged.
+    if (isMobile) {
+      this.ambientLight = new THREE.AmbientLight(0x556688, 1.2);
+      this.add(this.ambientLight);
+      this.hemiLight = undefined;
 
-    this.hemiLight = new THREE.HemisphereLight(0x6b82b8, 0x222833, 0.9);
-    this.hemiLight.position.set(0, 35, 0);
-    this.add(this.hemiLight);
+      this.moonKeyLight = new THREE.DirectionalLight(0x99bbff, 0.9);
+      this.moonKeyLight.position.set(-22, 38, -42);
+      this.moonKeyLight.castShadow = false;
+      this.add(this.moonKeyLight);
 
-    this.moonKeyLight = new THREE.DirectionalLight(0xaac4ff, 1.0);
-    this.moonKeyLight.position.set(-22, 38, -42);
-    this.moonKeyLight.castShadow = !isSmoothOrMobile && this.shadowsEnabled;
-    if (!isMobile) {
+      this.oppositeDirLight = undefined;
+    } else {
+      this.ambientLight = new THREE.AmbientLight(0x4a5d82, 1.1);
+      this.add(this.ambientLight);
+
+      this.hemiLight = new THREE.HemisphereLight(0x6b82b8, 0x222833, 0.9);
+      this.hemiLight.position.set(0, 35, 0);
+      this.add(this.hemiLight);
+
+      this.moonKeyLight = new THREE.DirectionalLight(0xaac4ff, 1.0);
+      this.moonKeyLight.position.set(-22, 38, -42);
+      this.moonKeyLight.castShadow = !isSmoothOrMobile && this.shadowsEnabled;
       this.moonKeyLight.shadow.mapSize.set(1024, 1024);
       this.moonKeyLight.shadow.bias = -0.0005;
       this.moonKeyLight.shadow.normalBias = 0.02;
-    }
-    this.add(this.moonKeyLight);
+      this.add(this.moonKeyLight);
 
-    if (isMobile) {
-      this.oppositeDirLight = undefined;
-    } else {
       this.oppositeDirLight = new THREE.DirectionalLight(0x8ca4c8, 0.55);
       this.oppositeDirLight.position.set(18, 28, 26);
       this.oppositeDirLight.visible = !isSmoothOrMobile;
@@ -1726,14 +1746,16 @@ export class RaktPishachiniGame extends xb.Script {
     const isSmoothOrMobile = this.graphicsQuality === 'low' || isMobile;
 
     if (this.ambientLight) {
+      const baseAmbHex = isMobile ? 0x556688 : 0x4a5d82;
+      const baseAmbInt = isMobile ? 1.2 : 1.1;
       _targetColor
-        .setHex(0x4a5d82)
+        .setHex(baseAmbHex)
         .lerp(_dreadFlashlightColor, combinedRedMix * 0.78)
         .lerp(_stormLightningTint, skyFlash * (isMobile ? 0.55 : 0.85));
       this.ambientLight.color.copy(_targetColor);
       this.ambientLight.intensity = Math.min(
         1.5,
-        1.1 * intensityDip * diffAtmosMul +
+        baseAmbInt * intensityDip * diffAtmosMul +
           redFlashBoost * 0.35 +
           skyFlash * 0.45,
       );
@@ -1755,14 +1777,16 @@ export class RaktPishachiniGame extends xb.Script {
     }
 
     if (this.moonKeyLight) {
+      const baseMoonHex = isMobile ? 0x99bbff : 0xaac4ff;
+      const baseMoonInt = isMobile ? 0.9 : 1.0;
       _targetColor
-        .setHex(0xaac4ff)
+        .setHex(baseMoonHex)
         .lerp(_dreadFlashlightColor, combinedRedMix * 0.85)
         .lerp(_stormLightningTint, skyFlash * (isMobile ? 0.65 : 0.95));
       this.moonKeyLight.color.copy(_targetColor);
       this.moonKeyLight.intensity = Math.min(
         2.1,
-        1.0 * intensityDip * diffAtmosMul +
+        baseMoonInt * intensityDip * diffAtmosMul +
           redFlashBoost * 0.65 +
           skyFlash * 0.85,
       );
@@ -2228,17 +2252,112 @@ export class RaktPishachiniGame extends xb.Script {
     this.spawnThrowablesForSession();
 
     if (this.isMobileDevice()) {
-      this.convertHierarchyToMobileLambert(this.mansionRoot);
-      if (this.playerArms?.group) {
-        this.convertHierarchyToMobileLambert(this.playerArms.group);
+      this.applyMobileGlobalSceneCleanup();
+    }
+  }
+
+  /**
+   * Returns the total number of active Three.js Light instances currently in the gameplay scene graph.
+   */
+  public getActiveLightCount(): number {
+    const seen = new Set<THREE.Light>();
+    const roots: THREE.Object3D[] = [];
+    if (xb.core.scene) roots.push(xb.core.scene);
+    roots.push(this, this.mansionRoot);
+    if (xb.core.camera) roots.push(xb.core.camera);
+    for (const root of roots) {
+      root.traverse((obj) => {
+        const light = obj as THREE.Light;
+        if (light.isLight && light.visible) {
+          seen.add(light);
+        }
+      });
+    }
+    return seen.size;
+  }
+
+  /**
+   * GLOBAL SCENE TRAVERSE CLEANUP ON MOBILE (CRITICAL FIX):
+   * Right AFTER the entire 3D world (Exterior, 32-room Haveli, Underground Maze, Well Courtyard, Friends, Rukmini)
+   * finishes building and BEFORE starting the render loop, if `isMobile` is true, traverses the entire scene:
+   * - Removes EVERY PointLight, SpotLight, HemisphereLight, and extra DirectionalLight in the entire scene
+   *   EXCEPT the single `playerFlashlight` SpotLight (keeping ONLY 1 AmbientLight(0x556688, 1.2),
+   *   1 DirectionalLight(0x99bbff, 0.9), and 1 playerFlashlight = 3 lights max so Android shaders NEVER overflow).
+   * - For every Mesh, disables `castShadow = false; receiveShadow = false;` and converts heavy
+   *   MeshStandardMaterial / MeshPhysicalMaterial materials into lightweight THREE.MeshLambertMaterial
+   *   preserving `color`, `map`, `emissive`, `transparent`, `opacity`, and `side`.
+   * - Keeps `scene.fog = new THREE.FogExp2(0x0b101d, 0.015)` and `renderer.setClearColor(0x0b101d, 1)`.
+   */
+  public applyMobileGlobalSceneCleanup() {
+    if (!this.isMobileDevice()) return;
+
+    const renderer = xb.core.renderer;
+    const scene = xb.core.scene;
+    if (renderer instanceof THREE.WebGLRenderer) {
+      (renderer.capabilities as { precision?: string }).precision = 'mediump';
+      renderer.setPixelRatio(1);
+      renderer.shadowMap.enabled = false;
+      renderer.setClearColor(0x0b101d, 1);
+    }
+    if (scene) {
+      scene.background = _storyNightSkyColor;
+      _nightHorizonFog.color.setHex(0x0b101d);
+      _nightHorizonFog.density = 0.015;
+      scene.fog = _nightHorizonFog;
+    }
+
+    if (this.ambientLight) {
+      this.ambientLight.visible = true;
+      if (!this.ambientLight.parent) {
+        this.add(this.ambientLight);
       }
+    }
+    if (this.moonKeyLight) {
+      this.moonKeyLight.visible = true;
+      this.moonKeyLight.castShadow = false;
+      if (!this.moonKeyLight.parent) {
+        this.add(this.moonKeyLight);
+      }
+    }
+    if (this.flashlight) {
+      this.flashlight.visible = true;
+      this.flashlight.castShadow = false;
+    }
+
+    const roots: THREE.Object3D[] = [];
+    if (scene) roots.push(scene);
+    roots.push(this, this.mansionRoot);
+    if (xb.core.camera) roots.push(xb.core.camera);
+    if (this.playerArms?.group) roots.push(this.playerArms.group);
+
+    const lightsToRemove: THREE.Light[] = [];
+    for (const root of roots) {
+      this.convertHierarchyToMobileLambert(root);
+      root.traverse((obj) => {
+        const light = obj as THREE.Light;
+        if (light.isLight) {
+          if (
+            light !== this.ambientLight &&
+            light !== this.moonKeyLight &&
+            light !== this.flashlight
+          ) {
+            lightsToRemove.push(light);
+          }
+        }
+      });
+    }
+
+    for (const extraLight of lightsToRemove) {
+      extraLight.visible = false;
+      extraLight.intensity = 0;
+      extraLight.parent?.remove(extraLight);
     }
   }
 
   /**
    * Converts heavy PBR MeshStandardMaterial / MeshPhysicalMaterial in a hierarchy
    * into lightweight MeshLambertMaterial on mobile GPUs (Adreno/Mali) and disables
-   * per-mesh shadow flags so WebGL shaders compile cleanly without white-screen washout.
+   * per-mesh shadow flags so WebGL shaders compile cleanly without black/white-screen shader failure.
    */
   private convertHierarchyToMobileLambert(root: THREE.Object3D) {
     const convertedCache = new Map<THREE.Material, THREE.Material>();
@@ -2273,11 +2392,13 @@ export class RaktPishachiniGame extends xb.Script {
           polygonOffsetUnits: mat.polygonOffsetUnits,
           name: mat.name,
         });
+        lambert.precision = 'mediump';
         convertedCache.set(mat, lambert);
         toDispose.push(mat);
         return lambert;
       }
 
+      mat.precision = 'mediump';
       convertedCache.set(mat, mat);
       return mat;
     };
@@ -2425,7 +2546,7 @@ export class RaktPishachiniGame extends xb.Script {
     }
 
     if (this.haveli && this.isMobileDevice()) {
-      this.convertHierarchyToMobileLambert(this.mansionRoot);
+      this.applyMobileGlobalSceneCleanup();
     }
     this.onHudUpdate?.();
   }
@@ -5528,8 +5649,8 @@ export class RaktPishachiniGame extends xb.Script {
       scene.fog = _nightHorizonFog;
     }
     if (this.ambientLight) {
-      this.ambientLight.color.setHex(0x4a5d82);
-      this.ambientLight.intensity = 1.1;
+      this.ambientLight.color.setHex(isMobile ? 0x556688 : 0x4a5d82);
+      this.ambientLight.intensity = isMobile ? 1.2 : 1.1;
     }
     if (this.hemiLight) {
       this.hemiLight.color.setHex(0x6b82b8);
@@ -5537,8 +5658,8 @@ export class RaktPishachiniGame extends xb.Script {
       this.hemiLight.intensity = 0.9;
     }
     if (this.moonKeyLight) {
-      this.moonKeyLight.color.setHex(0xaac4ff);
-      this.moonKeyLight.intensity = 1.0;
+      this.moonKeyLight.color.setHex(isMobile ? 0x99bbff : 0xaac4ff);
+      this.moonKeyLight.intensity = isMobile ? 0.9 : 1.0;
       this.moonKeyLight.position.set(-22, 38, -42);
     }
     const camReset = xb.core.camera as THREE.PerspectiveCamera | undefined;
@@ -5724,7 +5845,7 @@ export class RaktPishachiniGame extends xb.Script {
     this.bhabhutBurstEffects = [];
     this.throwables = createThrowablePickups(this.mansionRoot);
     if (this.haveli && this.isMobileDevice()) {
-      this.convertHierarchyToMobileLambert(this.mansionRoot);
+      this.applyMobileGlobalSceneCleanup();
     }
   }
 
@@ -5954,26 +6075,39 @@ export class RaktPishachiniGame extends xb.Script {
     const projGroup = new THREE.Group();
     projGroup.position.copy(startLocalPos);
 
+    const isMobileThrow = this.isMobileDevice();
     if (kind === 'kulhad') {
       const pot = new THREE.Mesh(
         new THREE.CylinderGeometry(0.088, 0.056, 0.15, 14),
-        new THREE.MeshStandardMaterial({
-          color: 0xc25d36,
-          emissive: 0x451b09,
-          emissiveIntensity: 0.65,
-          roughness: 0.78,
-        }),
+        isMobileThrow
+          ? new THREE.MeshLambertMaterial({
+              color: 0xc25d36,
+              emissive: 0x451b09,
+              emissiveIntensity: 0.65,
+            })
+          : new THREE.MeshStandardMaterial({
+              color: 0xc25d36,
+              emissive: 0x451b09,
+              emissiveIntensity: 0.65,
+              roughness: 0.78,
+            }),
       );
       projGroup.add(pot);
     } else {
       const stone = new THREE.Mesh(
         new THREE.DodecahedronGeometry(0.082, 0),
-        new THREE.MeshStandardMaterial({
-          color: 0x7c766d,
-          emissive: 0x292219,
-          emissiveIntensity: 0.55,
-          roughness: 0.85,
-        }),
+        isMobileThrow
+          ? new THREE.MeshLambertMaterial({
+              color: 0x7c766d,
+              emissive: 0x292219,
+              emissiveIntensity: 0.55,
+            })
+          : new THREE.MeshStandardMaterial({
+              color: 0x7c766d,
+              emissive: 0x292219,
+              emissiveIntensity: 0.55,
+              roughness: 0.85,
+            }),
       );
       stone.scale.set(1.15, 0.75, 0.92);
       projGroup.add(stone);
@@ -6001,14 +6135,22 @@ export class RaktPishachiniGame extends xb.Script {
     fxGroup.position.set(impactPos.x, impactPos.y, impactPos.z);
 
     const shardGeo = new THREE.DodecahedronGeometry(0.036, 0);
-    const shardMat = new THREE.MeshStandardMaterial({
-      color: kind === 'kulhad' ? 0xc25d36 : 0x7a746c,
-      emissive: kind === 'kulhad' ? 0x54220a : 0x26211c,
-      emissiveIntensity: 0.5,
-      roughness: 0.82,
-      transparent: true,
-      opacity: 1.0,
-    });
+    const shardMat = this.isMobileDevice()
+      ? new THREE.MeshLambertMaterial({
+          color: kind === 'kulhad' ? 0xc25d36 : 0x7a746c,
+          emissive: kind === 'kulhad' ? 0x54220a : 0x26211c,
+          emissiveIntensity: 0.5,
+          transparent: true,
+          opacity: 1.0,
+        })
+      : new THREE.MeshStandardMaterial({
+          color: kind === 'kulhad' ? 0xc25d36 : 0x7a746c,
+          emissive: kind === 'kulhad' ? 0x54220a : 0x26211c,
+          emissiveIntensity: 0.5,
+          roughness: 0.82,
+          transparent: true,
+          opacity: 1.0,
+        });
 
     const shards: Array<{
       mesh: THREE.Mesh;
@@ -6687,6 +6829,9 @@ export class RaktPishachiniGame extends xb.Script {
       _nightHorizonFog.color.setHex(0x0b101d);
       _nightHorizonFog.density = 0.015;
       scene.fog = _nightHorizonFog;
+    }
+    if (this.isMobileDevice()) {
+      this.applyMobileGlobalSceneCleanup();
     }
     this.syncViewportSize();
   }
@@ -7582,6 +7727,9 @@ export class RaktPishachiniGame extends xb.Script {
 
     const time = performance.now() * 0.001;
     this.clearSimulatorDaytimeSkybox();
+    if (this.isMobileDevice() && this.getActiveLightCount() > 3) {
+      this.applyMobileGlobalSceneCleanup();
+    }
     const cam = xb.core.camera as THREE.PerspectiveCamera | undefined;
 
     if (cam) {
