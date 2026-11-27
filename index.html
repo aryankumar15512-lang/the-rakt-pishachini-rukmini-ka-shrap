@@ -11,7 +11,7 @@
       name="description"
       content="Single Player First Person Horror Story Game in Thakur Mansion powered by XR Blocks, Three.js, and Gemini AI."
     />
-    <meta name="theme-color" content="#7f1d1d" />
+    <meta name="theme-color" content="#000000" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
@@ -2662,6 +2662,38 @@
     >
       <span class="offline-dot" aria-hidden="true"></span>
       <span>Offline Mode — Playing from cached files</span>
+    </div>
+
+    <!-- 8. ANDROID BACK BUTTON / EXIT GAME CONFIRMATION MODAL -->
+    <div
+      id="exit-confirm-modal"
+      class="modal-backdrop exit-confirm-backdrop hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="exit-confirm-title"
+    >
+      <div class="exit-confirm-card">
+        <h2 id="exit-confirm-title" class="exit-confirm-title">EXIT GAME?</h2>
+        <p id="exit-confirm-message" class="exit-confirm-message">
+          Are you sure you want to leave Thakur Haveli?
+        </p>
+        <div class="exit-confirm-actions">
+          <button
+            id="exit-confirm-cancel-btn"
+            type="button"
+            class="exit-confirm-btn exit-confirm-btn-cancel"
+          >
+            CANCEL
+          </button>
+          <button
+            id="exit-confirm-exit-btn"
+            type="button"
+            class="exit-confirm-btn exit-confirm-btn-exit"
+          >
+            EXIT
+          </button>
+        </div>
+      </div>
     </div>
 
     <script type="module" src="/src/index.ts"></script>

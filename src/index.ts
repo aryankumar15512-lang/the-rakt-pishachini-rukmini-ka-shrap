@@ -4371,21 +4371,31 @@ document.addEventListener('DOMContentLoaded', () => {
     /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ||
     ('ontouchstart' in window && navigator.maxTouchPoints > 0);
 
+  const isStandaloneOrFullscreenMode = (): boolean =>
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone ===
+      true;
+
   const requestMobileFullscreenLandscape = async (): Promise<void> => {
     if (!isMobileTouchDevice()) return;
-    try {
-      const rootEl = document.documentElement as HTMLElement & {
-        webkitRequestFullscreen?: () => Promise<void> | void;
-      };
-      if (!document.fullscreenElement) {
-        if (typeof rootEl.requestFullscreen === 'function') {
-          await rootEl.requestFullscreen();
-        } else if (typeof rootEl.webkitRequestFullscreen === 'function') {
-          await rootEl.webkitRequestFullscreen();
+    // Do NOT call requestFullscreen() when already in standalone/fullscreen PWA or TWA mode
+    // so Android Chrome never displays the "...vercel.app — Drag from top to exit full screen" toast
+    if (!isStandaloneOrFullscreenMode()) {
+      try {
+        const rootEl = document.documentElement as HTMLElement & {
+          webkitRequestFullscreen?: () => Promise<void> | void;
+        };
+        if (!document.fullscreenElement) {
+          if (typeof rootEl.requestFullscreen === 'function') {
+            await rootEl.requestFullscreen();
+          } else if (typeof rootEl.webkitRequestFullscreen === 'function') {
+            await rootEl.webkitRequestFullscreen();
+          }
         }
+      } catch {
+        // Fullscreen may be blocked by browser policy or already active
       }
-    } catch {
-      // Fullscreen may be blocked by browser policy or already active
     }
     try {
       const orientation = screen.orientation as ScreenOrientation & {
@@ -4398,6 +4408,97 @@ document.addEventListener('DOMContentLoaded', () => {
       // Orientation lock is only supported in fullscreen/installed contexts on supported devices
     }
   };
+
+  // Android Back Button / Edge-Swipe Exit Confirmation Modal Trap
+  const exitConfirmModal = document.getElementById('exit-confirm-modal');
+  const exitConfirmCancelBtn = document.getElementById(
+    'exit-confirm-cancel-btn',
+  );
+  const exitConfirmExitBtn = document.getElementById('exit-confirm-exit-btn');
+  let allowImmediateBrowserExit = false;
+
+  const pushBackTrapState = () => {
+    try {
+      window.history.pushState({ trap: true }, '');
+    } catch {
+      // Ignore history errors in restricted contexts
+    }
+  };
+
+  const openExitConfirmModal = () => {
+    if (!exitConfirmModal) return;
+    exitConfirmModal.classList.remove('hidden');
+  };
+
+  const closeExitConfirmModal = () => {
+    if (!exitConfirmModal) return;
+    exitConfirmModal.classList.add('hidden');
+  };
+
+  // Initialize history trap state and reinforce on first user interaction so Android back swipe is always caught
+  pushBackTrapState();
+  let backTrapReinforced = false;
+  const reinforceBackTrapOnce = () => {
+    if (backTrapReinforced) return;
+    backTrapReinforced = true;
+    pushBackTrapState();
+  };
+  window.addEventListener('pointerdown', reinforceBackTrapOnce, {
+    capture: true,
+    passive: true,
+  });
+  window.addEventListener('touchstart', reinforceBackTrapOnce, {
+    capture: true,
+    passive: true,
+  });
+
+  window.addEventListener('popstate', () => {
+    if (allowImmediateBrowserExit) return;
+    pushBackTrapState();
+    openExitConfirmModal();
+  });
+
+  exitConfirmCancelBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeExitConfirmModal();
+  });
+
+  exitConfirmExitBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeExitConfirmModal();
+    const isInGameplayOrStory =
+      game.gameState === 'playing' ||
+      !storyScreen.classList.contains('hidden') ||
+      menuScreen.classList.contains('hidden');
+    if (isInGameplayOrStory) {
+      if (game.gameState === 'playing') {
+        game.saveProgressToStorage();
+      } else {
+        vnDirector.stop();
+        cutsceneDirector.stop();
+        game.gemini.stopSpeech();
+        introVideo.pause();
+      }
+      game.gameState = 'menu';
+      openLobbySetupScreen();
+    } else {
+      game.synth.setGameplayAudioEnabled(false);
+      vnDirector.stop();
+      cutsceneDirector.stop();
+      allowImmediateBrowserExit = true;
+      try {
+        window.close();
+      } catch {
+        // Ignore if window.close is blocked
+      }
+      try {
+        window.history.go(-2);
+      } catch {
+        // Ignore history navigation errors
+      }
+      showMenuNotice('गेम बंद हो रहा है। आप ब्राउज़र टैब बंद कर सकते हैं।');
+    }
+  });
 
   // Primary Main Menu Buttons: Continue, New Game, Options, Exit
   continueGameBtn.addEventListener('click', async (e) => {
@@ -4450,10 +4551,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   exitGameBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    game.synth.setGameplayAudioEnabled(false);
-    vnDirector.stop();
-    cutsceneDirector.stop();
-    showMenuNotice('गेम बंद हो रहा है। आप ब्राउज़र टैब बंद कर सकते हैं।');
+    openExitConfirmModal();
   });
 
   // Co-Op Room Setup Button Listeners
