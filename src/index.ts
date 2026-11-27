@@ -1327,8 +1327,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const hudBuildTagEl = document.getElementById('hud-build-tag');
   const updateDiagnosticBuildBadge = () => {
     if (!hudBuildTagEl) return;
-    const activeLightCount = game.getActiveLightCount();
-    const text = `v1.0.4 | ${isMobile ? 'MOB' : 'PC'} | L:${activeLightCount}`;
+    const text = `v1.0.4 | ${isMobile ? 'MOB' : 'PC'}`;
     if (hudBuildTagEl.textContent !== text) {
       hudBuildTagEl.textContent = text;
     }
@@ -1384,7 +1383,7 @@ document.addEventListener('DOMContentLoaded', () => {
       host.appendChild(gameCanvas);
 
       // When isMobile is true, ensure the gameplay WebGL context & THREE.WebGLRenderer use:
-      // { antialias: false, powerPreference: 'default', precision: 'mediump', stencil: false, depth: true, alpha: false }
+      // { antialias: true, powerPreference: 'high-performance', precision: 'mediump', stencil: false, depth: true, alpha: false, logarithmicDepthBuffer: false }
       if (isMobile) {
         const origGetContext = gameCanvas.getContext.bind(gameCanvas);
         gameCanvas.getContext = ((
@@ -1398,8 +1397,8 @@ document.addEventListener('DOMContentLoaded', () => {
           ) {
             return origGetContext(contextId, {
               ...(attrs || {}),
-              antialias: false,
-              powerPreference: 'default',
+              antialias: true,
+              powerPreference: 'high-performance',
               stencil: false,
               depth: true,
               alpha: false,
@@ -1411,7 +1410,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const options = new xb.Options();
       options.canvas = gameCanvas;
-      options.antialias = !isMobile;
+      options.antialias = true;
       options.stencil = false;
       options.usePostprocessing = false;
       options.xrButton.enabled = false;
@@ -1425,17 +1424,20 @@ document.addEventListener('DOMContentLoaded', () => {
       xrGameplayInitPromise = (async () => {
         try {
           if (isMobile) {
-            // Pre-initialize mobile-safe WebGLRenderer on gameCanvas with precision: 'mediump'
+            // Pre-initialize sharp & non-blurry mobile WebGLRenderer on gameCanvas
             const mobileRenderer = new THREE.WebGLRenderer({
               canvas: gameCanvas,
-              antialias: false,
-              powerPreference: 'default',
+              antialias: true,
+              powerPreference: 'high-performance',
               precision: 'mediump',
               stencil: false,
               depth: true,
               alpha: false,
+              logarithmicDepthBuffer: false,
             });
-            mobileRenderer.setPixelRatio(1);
+            mobileRenderer.setPixelRatio(
+              Math.min(window.devicePixelRatio || 1, 1.5),
+            );
             mobileRenderer.shadowMap.enabled = false;
             mobileRenderer.setClearColor(0x0b101d, 1);
           }
@@ -1449,22 +1451,10 @@ document.addEventListener('DOMContentLoaded', () => {
           if (isMobile) {
             (renderer.capabilities as { precision?: string }).precision =
               'mediump';
-            renderer.setPixelRatio(1);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
             renderer.shadowMap.enabled = false;
             renderer.setClearColor(0x0b101d, 1);
-            renderer.debug.checkShaderErrors = true;
-            renderer.debug.onShaderError = (
-              glCtx,
-              _program,
-              glVertexShader,
-              glFragmentShader,
-            ) => {
-              const vLog = glCtx.getShaderInfoLog(glVertexShader)?.trim();
-              const fLog = glCtx.getShaderInfoLog(glFragmentShader)?.trim();
-              showMobileTopCenterError(
-                `ShaderError: ${fLog || vLog || 'GLSL compile/link failed'}`,
-              );
-            };
+            renderer.debug.checkShaderErrors = false;
             game.applyMobileGlobalSceneCleanup();
           }
           const gl = renderer.getContext();
@@ -1482,6 +1472,10 @@ document.addEventListener('DOMContentLoaded', () => {
               xb.core.scene.add(cam);
             }
             cam.aspect = w / h;
+            if (isMobile) {
+              cam.near = 0.25;
+              cam.far = 70;
+            }
             cam.updateProjectionMatrix();
           }
           game.applyGraphicsSettings(
@@ -1510,7 +1504,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const renderer = xb.core.renderer;
     if (renderer instanceof THREE.WebGLRenderer) {
       if (isMobile) {
-        renderer.setPixelRatio(1);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
         renderer.shadowMap.enabled = false;
       }
       const w = window.innerWidth || 800;
@@ -1519,6 +1513,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const cam = xb.core.camera as THREE.PerspectiveCamera | undefined;
       if (cam) {
         cam.aspect = w / h;
+        if (isMobile) {
+          cam.near = 0.25;
+          cam.far = 70;
+        }
         cam.updateProjectionMatrix();
       }
     }

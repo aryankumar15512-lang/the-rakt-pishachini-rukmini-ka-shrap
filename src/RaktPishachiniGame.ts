@@ -874,7 +874,7 @@ export class RaktPishachiniGame extends xb.Script {
       renderer.autoClearColor = true;
       if (isMobile) {
         (renderer.capabilities as { precision?: string }).precision = 'mediump';
-        renderer.setPixelRatio(1);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
         renderer.shadowMap.enabled = false;
       } else if (isSmoothOrMobile) {
         renderer.setPixelRatio(1);
@@ -975,11 +975,11 @@ export class RaktPishachiniGame extends xb.Script {
       }
     }
 
-    // Light night fog so SUV, road, gate, and Thakur Haveli are clearly visible (#0b101d, 0.015)
+    // Light night fog so SUV, road, gate, and Thakur Haveli are crisp and clear (#0b101d, 0.009 on mobile, 0.015 on PC)
     if (scene) {
       scene.background = _storyNightSkyColor;
       _nightHorizonFog.color.setHex(0x0b101d);
-      _nightHorizonFog.density = 0.015;
+      _nightHorizonFog.density = isMobile ? 0.009 : 0.015;
       scene.fog = _nightHorizonFog;
     }
 
@@ -1026,11 +1026,12 @@ export class RaktPishachiniGame extends xb.Script {
       }
       cam.rotation.order = 'YXZ';
       let projDirty = false;
-      if (cam.near !== 0.1) {
-        cam.near = 0.1;
+      const targetNear = isMobile ? 0.25 : 0.1;
+      if (cam.near !== targetNear) {
+        cam.near = targetNear;
         projDirty = true;
       }
-      const targetFar = isSmoothOrMobile ? 95 : 280;
+      const targetFar = isMobile ? 70 : isSmoothOrMobile ? 95 : 280;
       if (cam.far !== targetFar) {
         cam.far = targetFar;
         projDirty = true;
@@ -1815,8 +1816,11 @@ export class RaktPishachiniGame extends xb.Script {
         .copy(_storyNightSkyColor)
         .lerp(_storyLightningSkyColor, isMobile ? skyFlash * 0.2 : isSmoothOrMobile ? skyFlash * 0.3 : skyFlash * 0.5);
       _nightHorizonFog.color.copy(_activeStormSkyColor);
-      _nightHorizonFog.density =
-        this.difficulty === 'nightmare' ? 0.017 : 0.015;
+      _nightHorizonFog.density = isMobile
+        ? 0.009
+        : this.difficulty === 'nightmare'
+          ? 0.017
+          : 0.015;
       if (scene.fog !== _nightHorizonFog) {
         scene.fog = _nightHorizonFog;
       }
@@ -2286,7 +2290,7 @@ export class RaktPishachiniGame extends xb.Script {
    * - For every Mesh, disables `castShadow = false; receiveShadow = false;` and converts heavy
    *   MeshStandardMaterial / MeshPhysicalMaterial materials into lightweight THREE.MeshLambertMaterial
    *   preserving `color`, `map`, `emissive`, `transparent`, `opacity`, and `side`.
-   * - Keeps `scene.fog = new THREE.FogExp2(0x0b101d, 0.015)` and `renderer.setClearColor(0x0b101d, 1)`.
+   * - Keeps `scene.fog = new THREE.FogExp2(0x0b101d, 0.009)` and `renderer.setClearColor(0x0b101d, 1)`.
    */
   public applyMobileGlobalSceneCleanup() {
     if (!this.isMobileDevice()) return;
@@ -2295,15 +2299,21 @@ export class RaktPishachiniGame extends xb.Script {
     const scene = xb.core.scene;
     if (renderer instanceof THREE.WebGLRenderer) {
       (renderer.capabilities as { precision?: string }).precision = 'mediump';
-      renderer.setPixelRatio(1);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
       renderer.shadowMap.enabled = false;
       renderer.setClearColor(0x0b101d, 1);
     }
     if (scene) {
       scene.background = _storyNightSkyColor;
       _nightHorizonFog.color.setHex(0x0b101d);
-      _nightHorizonFog.density = 0.015;
+      _nightHorizonFog.density = 0.009;
       scene.fog = _nightHorizonFog;
+    }
+    const cam = xb.core.camera as THREE.PerspectiveCamera | undefined;
+    if (cam) {
+      cam.near = 0.25;
+      cam.far = 70;
+      cam.updateProjectionMatrix();
     }
 
     if (this.ambientLight) {
@@ -5126,8 +5136,12 @@ export class RaktPishachiniGame extends xb.Script {
       );
       this.brightnessPercent = clampedBright;
       renderer.setClearColor(0x0b101d, 1);
-      if (isSmoothOrMobile) {
-        // SMOOTH / Android mobile optimization: pixelRatio 1.0, heavy real-time shadows disabled
+      if (isMobile) {
+        // Android mobile sharp & smooth optimization: pixelRatio capped at 1.5, shadows disabled
+        renderer.setPixelRatio(Math.min(dpr, 1.5));
+        renderer.shadowMap.enabled = false;
+      } else if (isSmoothOrMobile) {
+        // PC Smooth preset: pixelRatio 1.0, heavy real-time shadows disabled
         renderer.setPixelRatio(1.0);
         renderer.shadowMap.enabled = false;
       } else if (quality === 'ultra' || quality === 'high') {
@@ -5167,11 +5181,12 @@ export class RaktPishachiniGame extends xb.Script {
     const cam = xb.core.camera as THREE.PerspectiveCamera | undefined;
     if (cam) {
       let projDirty = false;
-      if (cam.near !== 0.1) {
-        cam.near = 0.1;
+      const targetNear = isMobile ? 0.25 : 0.1;
+      if (cam.near !== targetNear) {
+        cam.near = targetNear;
         projDirty = true;
       }
-      const targetFar = isSmoothOrMobile ? 95 : 280;
+      const targetFar = isMobile ? 70 : isSmoothOrMobile ? 95 : 280;
       if (cam.far !== targetFar) {
         cam.far = targetFar;
         projDirty = true;
@@ -5185,7 +5200,7 @@ export class RaktPishachiniGame extends xb.Script {
     if (scene && this.gameState === 'playing' && this.entryPhase !== 'victory_escape_cutscene') {
       scene.background = _storyNightSkyColor;
       _nightHorizonFog.color.setHex(0x0b101d);
-      _nightHorizonFog.density = 0.015;
+      _nightHorizonFog.density = isMobile ? 0.009 : 0.015;
       scene.fog = _nightHorizonFog;
     }
     this.syncViewportSize();
@@ -5645,7 +5660,7 @@ export class RaktPishachiniGame extends xb.Script {
     if (scene) {
       scene.background = _storyNightSkyColor;
       _nightHorizonFog.color.setHex(0x0b101d);
-      _nightHorizonFog.density = 0.015;
+      _nightHorizonFog.density = isMobile ? 0.009 : 0.015;
       scene.fog = _nightHorizonFog;
     }
     if (this.ambientLight) {
@@ -6827,7 +6842,7 @@ export class RaktPishachiniGame extends xb.Script {
     if (scene) {
       scene.background = _storyNightSkyColor;
       _nightHorizonFog.color.setHex(0x0b101d);
-      _nightHorizonFog.density = 0.015;
+      _nightHorizonFog.density = this.isMobileDevice() ? 0.009 : 0.015;
       scene.fog = _nightHorizonFog;
     }
     if (this.isMobileDevice()) {
@@ -6845,7 +6860,9 @@ export class RaktPishachiniGame extends xb.Script {
     const renderer = xb.core.renderer;
     if (renderer instanceof THREE.WebGLRenderer) {
       renderer.setClearColor(0x0b101d, 1);
-      if (isSmoothOrMobile) {
+      if (isMobile) {
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+      } else if (isSmoothOrMobile) {
         renderer.setPixelRatio(1);
       }
       renderer.setSize(w, h);
@@ -6870,8 +6887,8 @@ export class RaktPishachiniGame extends xb.Script {
     const cam = xb.core.camera as THREE.PerspectiveCamera | undefined;
     if (cam) {
       cam.aspect = w / h;
-      cam.near = 0.1;
-      cam.far = isSmoothOrMobile ? 95 : 280;
+      cam.near = isMobile ? 0.25 : 0.1;
+      cam.far = isMobile ? 70 : isSmoothOrMobile ? 95 : 280;
       cam.updateProjectionMatrix();
     }
   }
@@ -7727,22 +7744,24 @@ export class RaktPishachiniGame extends xb.Script {
 
     const time = performance.now() * 0.001;
     this.clearSimulatorDaytimeSkybox();
-    if (this.isMobileDevice() && this.getActiveLightCount() > 3) {
-      this.applyMobileGlobalSceneCleanup();
-    }
     const cam = xb.core.camera as THREE.PerspectiveCamera | undefined;
 
     if (cam) {
       if (xb.core.scene && !cam.parent) {
         xb.core.scene.add(cam);
       }
+      const isMobile = this.isMobileDevice();
       let projDirty = false;
-      if (cam.near !== 0.1) {
-        cam.near = 0.1;
+      const targetNear = isMobile ? 0.25 : 0.1;
+      if (cam.near !== targetNear) {
+        cam.near = targetNear;
         projDirty = true;
       }
-      const targetFar =
-        this.graphicsQuality === 'low' || this.isMobileDevice() ? 95 : 280;
+      const targetFar = isMobile
+        ? 70
+        : this.graphicsQuality === 'low'
+          ? 95
+          : 280;
       if (cam.far !== targetFar) {
         cam.far = targetFar;
         projDirty = true;
