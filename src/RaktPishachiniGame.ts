@@ -4991,8 +4991,48 @@ export class RaktPishachiniGame extends xb.Script {
     try {
       const raw = localStorage.getItem('rakt_pishachini_save_data');
       if (!raw) return false;
-      const parsed = JSON.parse(raw) as { requiredItems?: unknown };
-      return Boolean(parsed && typeof parsed.requiredItems === 'number');
+      const parsed = JSON.parse(raw) as {
+        requiredItems?: unknown;
+        blackoutTrapTriggered?: unknown;
+        hasMansionKey?: unknown;
+        mansionKeyState?: unknown;
+        collectedCount?: unknown;
+        burnedCount?: unknown;
+        rescuedFriends?: unknown;
+        carriedThrowables?: unknown;
+        blessedBhabhutCount?: unknown;
+        jailKeyStates?: Array<{ collected?: boolean }>;
+        mansionPos?: { x?: number; z?: number };
+      };
+      if (!parsed || typeof parsed.requiredItems !== 'number') return false;
+      const movedFromInitialSpawn =
+        Boolean(
+          parsed.mansionPos &&
+            typeof parsed.mansionPos.x === 'number' &&
+            typeof parsed.mansionPos.z === 'number' &&
+            Math.hypot(
+              parsed.mansionPos.x - -EXTERIOR_SPAWN_LOCAL_X,
+              parsed.mansionPos.z - -EXTERIOR_SPAWN_LOCAL_Z,
+            ) > 2.5,
+        );
+      return Boolean(
+        parsed.blackoutTrapTriggered ||
+          parsed.hasMansionKey ||
+          (typeof parsed.mansionKeyState === 'string' &&
+            parsed.mansionKeyState !== 'in_guardhouse') ||
+          (typeof parsed.collectedCount === 'number' &&
+            parsed.collectedCount > 0) ||
+          (typeof parsed.burnedCount === 'number' && parsed.burnedCount > 0) ||
+          (typeof parsed.rescuedFriends === 'number' &&
+            parsed.rescuedFriends > 0) ||
+          (typeof parsed.carriedThrowables === 'number' &&
+            parsed.carriedThrowables > 0) ||
+          (typeof parsed.blessedBhabhutCount === 'number' &&
+            parsed.blessedBhabhutCount > 0) ||
+          (Array.isArray(parsed.jailKeyStates) &&
+            parsed.jailKeyStates.some((k) => Boolean(k?.collected))) ||
+          movedFromInitialSpawn,
+      );
     } catch {
       return false;
     }
@@ -5839,7 +5879,6 @@ export class RaktPishachiniGame extends xb.Script {
     this.gameState = 'playing';
     this.onPauseToggle?.(false);
     this.requestGamePointerLock();
-    this.saveProgressToStorage();
   }
 
   public spawnThrowablesForSession() {

@@ -8012,26 +8012,216 @@ body.notch-safe-off .lobby-bottom-bar {
     bottom: 54px;
   }
 
-  /* Settings & Profile Modals on Mobile Landscape */
-  .pro-settings-body {
-    grid-template-columns: 120px 1fr;
+  /* Compact Settings, Information Disclaimer & Profile Modals on Mobile Landscape (~35% smaller) */
+  .launch-disclaimer-card {
+    width: min(340px, 88vw);
+    max-width: 340px;
+    padding: 14px 18px;
+    border-radius: 10px;
   }
-  .pro-side-tab {
-    font-size: 0.66rem;
-    padding: 0 8px;
+  .launch-disclaimer-title {
+    font-size: 0.86rem;
+    margin: 0 0 8px;
+    letter-spacing: 0.14em;
   }
-  .pro-setting-row {
-    flex-direction: column;
-    align-items: stretch;
+  .launch-disclaimer-body {
+    font-size: 0.72rem;
+    line-height: 1.42;
+    margin: 0 0 14px;
+  }
+  .launch-confirm-btn {
+    min-width: 120px;
+    height: 32px;
+    padding: 0 18px;
+    font-size: 0.7rem;
+    border-radius: 6px;
+    letter-spacing: 0.12em;
+  }
+
+  .ig-settings-card.pro-settings-card {
+    width: min(620px, 94vw);
+    max-height: 92vh;
+    padding: 8px 12px;
+    border-radius: 10px;
+    gap: 6px;
+  }
+  .ig-settings-header {
+    padding-bottom: 4px;
     gap: 8px;
   }
-  .pro-seg,
-  .pro-seg-sm,
-  .pro-name-edit-wrap {
-    min-width: 0;
-    width: 100%;
+  .ig-settings-title {
+    font-size: 0.92rem;
+    letter-spacing: 0.05em;
   }
-  .hud-presets-grid,
+  .ig-settings-subtitle {
+    font-size: 0.56rem;
+    margin-top: 1px;
+  }
+  .ig-settings-close-x {
+    width: 24px;
+    height: 24px;
+    font-size: 0.72rem;
+    border-radius: 6px;
+  }
+  .pro-settings-body {
+    grid-template-columns: 118px 1fr;
+    min-height: 0;
+    max-height: calc(92vh - 92px);
+  }
+  .pro-settings-sidebar {
+    padding: 6px;
+    gap: 3px;
+  }
+  .pro-side-tab {
+    min-height: 30px;
+    padding: 0 8px;
+    font-size: 0.58rem;
+    border-radius: 6px;
+    letter-spacing: 0.07em;
+  }
+  .pro-settings-content {
+    padding: 8px 10px;
+  }
+  .pro-tab-panel,
+  .pro-subpanel {
+    gap: 6px;
+  }
+  .pro-subtabs-bar {
+    padding: 3px;
+    gap: 4px;
+    margin-bottom: 2px;
+    border-radius: 7px;
+  }
+  .pro-subtab-btn {
+    height: 24px;
+    font-size: 0.58rem;
+    border-radius: 5px;
+    letter-spacing: 0.08em;
+  }
+  .hud-presets-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .hud-preset-card {
+    padding: 6px 8px;
+    gap: 4px;
+    max-height: 126px;
+    border-radius: 7px;
+  }
+  .hud-preset-title {
+    font-size: 0.68rem;
+  }
+  .hud-preset-state {
+    font-size: 0.5rem;
+  }
+  .hud-mini-preview {
+    aspect-ratio: auto;
+    height: 56px;
+    max-height: 62px;
+    border-radius: 5px;
+  }
+  .hud-preset-desc {
+    font-size: 0.52rem;
+    line-height: 1.18;
+  }
+  .pro-custom-hud-cta {
+    height: 30px;
+    font-size: 0.68rem;
+    border-radius: 6px;
+    letter-spacing: 0.14em;
+  }
+  .pro-setting-row {
+    flex-direction: row;
+    align-items: center;
+    padding: 8px 10px;
+    gap: 8px;
+    border-radius: 7px;
+  }
+  .pro-setting-name {
+    font-size: 0.66rem;
+  }
+  .pro-setting-hint {
+    font-size: 0.52rem;
+    margin-top: 1px;
+    line-height: 1.25;
+  }
+  .pro-seg {
+    min-width: 148px;
+    width: auto;
+  }
+  .pro-seg-sm {
+    min-width: 104px;
+    width: auto;
+  }
+  .ig-segmented-group {
+    padding: 2px;
+    gap: 3px;
+    border-radius: 6px;
+  }
+  .ig-seg-btn {
+    padding: 4px 6px;
+    font-size: 0.56rem;
+    border-radius: 4px;
+  }
+  .ig-switch {
+    width: 34px;
+    height: 19px;
+  }
+  .ig-switch-track::after {
+    width: 14px;
+    height: 14px;
+    left: 2px;
+    top: 1.5px;
+  }
+  .ig-switch input:checked + .ig-switch-track::after {
+    transform: translateX(14px);
+  }
+  .pro-slider-card {
+    padding: 8px 10px;
+    gap: 5px;
+    border-radius: 7px;
+  }
+  .pro-slider-val {
+    font-size: 0.66rem;
+  }
+  .pro-step-btn {
+    width: 26px;
+    height: 26px;
+    font-size: 0.88rem;
+    border-radius: 6px;
+  }
+  .pro-slider-scale {
+    font-size: 0.5rem;
+  }
+  .pro-name-edit-wrap {
+    width: 132px;
+    min-width: 0;
+  }
+  .pro-text-input {
+    height: 26px;
+    font-size: 0.64rem;
+    padding: 0 8px;
+    border-radius: 5px;
+  }
+  .pro-action-btn {
+    height: 26px;
+    padding: 0 10px;
+    font-size: 0.58rem;
+    border-radius: 5px;
+  }
+  .ig-settings-footer {
+    padding-top: 6px;
+    gap: 8px;
+  }
+  .ig-footer-btn {
+    height: 32px;
+    padding: 0 10px;
+    font-size: 0.66rem;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
   .survivor-cards-grid,
   .gear-cards-grid,
   .sound-rules-grid,

@@ -1251,7 +1251,6 @@ document.addEventListener('DOMContentLoaded', () => {
     game.gameState = 'story';
 
     game.spawnRelicsForSession(game.requiredItems);
-    game.saveProgressToStorage();
     startVisualNovelStory(0);
   }
 
@@ -4479,6 +4478,21 @@ document.addEventListener('DOMContentLoaded', () => {
       vnDirector.stop();
       cutsceneDirector.stop();
       allowImmediateBrowserExit = true;
+      const capApp = (
+        window as unknown as {
+          Capacitor?: {
+            Plugins?: {
+              App?: {
+                exitApp?: () => void;
+              };
+            };
+          };
+        }
+      ).Capacitor?.Plugins?.App;
+      if (capApp && typeof capApp.exitApp === 'function') {
+        capApp.exitApp();
+        return;
+      }
       try {
         window.close();
       } catch {
