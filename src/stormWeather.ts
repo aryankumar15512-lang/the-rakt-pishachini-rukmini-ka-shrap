@@ -71,8 +71,14 @@ const _rainColorFlash = new THREE.Color(0xeef6ff);
 export class StormWeatherSystem {
   public readonly group = new THREE.Group();
 
-  private readonly maxRainStreaks = 1800;
-  private activeRainCount = 1800;
+  private readonly isMobile =
+    typeof navigator !== 'undefined' &&
+    (/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ||
+      (typeof window !== 'undefined' &&
+        'ontouchstart' in window &&
+        navigator.maxTouchPoints > 0));
+  private readonly maxRainStreaks = 250;
+  private activeRainCount = this.isMobile ? 120 : 250;
   private readonly rainData: RainStreakData[] = [];
   private readonly rainPositions: Float32Array;
   private readonly rainGeometry: THREE.BufferGeometry;
@@ -82,7 +88,7 @@ export class StormWeatherSystem {
   private readonly mistGusts: MistGustData[] = [];
   private readonly mistMaterial: THREE.MeshBasicMaterial;
   private readonly mistTexture: THREE.CanvasTexture;
-  private activeMistCount = 40;
+  private activeMistCount = this.isMobile ? 8 : 24;
 
   private readonly swayTrees: SwayTarget[] = [];
   private readonly swayBushes: SwayTarget[] = [];
@@ -105,6 +111,15 @@ export class StormWeatherSystem {
     facingClarity: 1.0,
     windGust: 0.5,
     stormFade: 1.0,
+  };
+  private readonly updateResultScratch: StormUpdateResult = {
+    lightningFlash: 0,
+    isOutdoors: true,
+    isBasement: false,
+    windGust: 0.5,
+    windDirX: 0,
+    windDirZ: 0,
+    strikeAzimuth: 0.65,
   };
 
   // Rain bounding volume around camera/player
@@ -279,15 +294,15 @@ export class StormWeatherSystem {
    * - ULTRA ('high' / 'ultra'): full heavy monsoon storm
    */
   public setQuality(quality: WeatherGraphicsQuality) {
-    if (quality === 'low') {
-      this.activeRainCount = 150;
+    if (this.isMobile || quality === 'low') {
+      this.activeRainCount = 120;
       this.activeMistCount = 8;
     } else if (quality === 'medium') {
-      this.activeRainCount = 1000;
-      this.activeMistCount = 24;
+      this.activeRainCount = 200;
+      this.activeMistCount = 16;
     } else {
-      this.activeRainCount = this.maxRainStreaks;
-      this.activeMistCount = this.mistGusts.length;
+      this.activeRainCount = 250;
+      this.activeMistCount = 24;
     }
     this.rainGeometry.setDrawRange(0, this.activeRainCount * 2);
     for (let i = 0; i < this.mistGusts.length; i++) {
@@ -718,15 +733,14 @@ export class StormWeatherSystem {
       }
     }
 
-    return {
-      lightningFlash,
-      isOutdoors,
-      isBasement,
-      windGust,
-      windDirX,
-      windDirZ,
-      strikeAzimuth: this.strikeAzimuth,
-    };
+    this.updateResultScratch.lightningFlash = lightningFlash;
+    this.updateResultScratch.isOutdoors = isOutdoors;
+    this.updateResultScratch.isBasement = isBasement;
+    this.updateResultScratch.windGust = windGust;
+    this.updateResultScratch.windDirX = windDirX;
+    this.updateResultScratch.windDirZ = windDirZ;
+    this.updateResultScratch.strikeAzimuth = this.strikeAzimuth;
+    return this.updateResultScratch;
   }
 
   public dispose() {

@@ -1,8 +1,6 @@
-const CACHE_NAME = 'rakt-pishachini-pwa-v10';
+const CACHE_NAME = 'rakt-pishachini-pwa-v11';
 
 const PRECACHE_URLS = [
-  './',
-  './index.html',
   './manifest.json',
   '/app-icon-512.png',
   './haveli-menu-bg.jpg',
@@ -50,17 +48,20 @@ self.addEventListener('fetch', (event) => {
   if (
     url.pathname.startsWith('/api/') ||
     url.pathname.startsWith('/@vite') ||
-    url.pathname.startsWith('/@fs')
+    url.pathname.startsWith('/@fs') ||
+    url.pathname.startsWith('/node_modules/')
   ) {
     return;
   }
 
-  // Navigation requests & JS/CSS code bundles: Network-first with cache fallback
+  // Navigation requests & JS/TS/CSS/HTML code bundles: Network-first with cache fallback
   const isCodeAsset =
     request.mode === 'navigate' ||
     request.destination === 'script' ||
     request.destination === 'style' ||
-    /\.(js|mjs|css|html)$/i.test(url.pathname);
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/assets/') ||
+    /\.(js|mjs|ts|tsx|css|html)$/i.test(url.pathname);
 
   if (isCodeAsset && url.origin === self.location.origin) {
     event.respondWith(

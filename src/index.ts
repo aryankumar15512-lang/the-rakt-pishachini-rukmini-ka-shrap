@@ -64,7 +64,21 @@ function readFileAsBase64(
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function closestElement(
+  target: EventTarget | null,
+  selector: string,
+): HTMLElement | null {
+  const el = target instanceof Element ? target : null;
+  if (!el || typeof el.closest !== 'function') return null;
+  return el.closest<HTMLElement>(selector);
+}
+
+let isAppBootstrapped = false;
+
+const bootstrapRaktPishachiniApp = () => {
+  if (isAppBootstrapped) return;
+  isAppBootstrapped = true;
+
   const game = new RaktPishachiniGame();
 
   // DOM References
@@ -1131,6 +1145,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function startVisualNovelStory(sceneIdx = 0) {
+    disposeLobbyScene3D();
     pausedFromState = null;
     isStoryPaused = false;
     pauseModal?.classList.add('hidden');
@@ -1242,7 +1257,7 @@ document.addEventListener('DOMContentLoaded', () => {
     menuStatusNotice.classList.add('hidden');
 
     game.lang = (langSelect.value as LanguageCode) || 'hi';
-    lobbyScene3D?.setActive(false);
+    disposeLobbyScene3D();
     game.playerName = validatedName;
     game.roomCode = roomCodeInput.value.trim() || '1992';
     game.playerCount = players;
@@ -1254,7 +1269,17 @@ document.addEventListener('DOMContentLoaded', () => {
     startVisualNovelStory(0);
   }
 
+  let lobbyFpsRafId = 0;
+  let startLobbyFpsLoop: (() => void) | null = null;
+  const stopLobbyFpsLoop = () => {
+    if (lobbyFpsRafId) {
+      window.cancelAnimationFrame(lobbyFpsRafId);
+      lobbyFpsRafId = 0;
+    }
+  };
+
   const disposeLobbyScene3D = () => {
+    stopLobbyFpsLoop();
     if (!lobbyScene3D) return;
     lobbyScene3D.dispose();
     lobbyScene3D = null;
@@ -1381,6 +1406,16 @@ document.addEventListener('DOMContentLoaded', () => {
         'position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; z-index: 1; background-color: #0b101d; filter: none; touch-action: none;';
       host.appendChild(gameCanvas);
 
+      // Direct mouse click / mousedown on the gameplay canvas reliably requests Pointer Lock on PC
+      const handleCanvasMouseLock = (e: MouseEvent) => {
+        if (e.button !== 0) return;
+        if (game.gameState === 'playing' && !game.isAnyBlockingOverlayOpen()) {
+          game.requestGamePointerLock(true);
+        }
+      };
+      gameCanvas.addEventListener('mousedown', handleCanvasMouseLock);
+      gameCanvas.addEventListener('click', handleCanvasMouseLock);
+
       // When isMobile is true, ensure the gameplay WebGL context & THREE.WebGLRenderer use:
       // { antialias: true, powerPreference: 'high-performance', precision: 'mediump', stencil: false, depth: true, alpha: false, logarithmicDepthBuffer: false }
       if (isMobile) {
@@ -1422,24 +1457,6 @@ document.addEventListener('DOMContentLoaded', () => {
       xb.add(game);
       xrGameplayInitPromise = (async () => {
         try {
-          if (isMobile) {
-            // Pre-initialize sharp & non-blurry mobile WebGLRenderer on gameCanvas
-            const mobileRenderer = new THREE.WebGLRenderer({
-              canvas: gameCanvas,
-              antialias: true,
-              powerPreference: 'high-performance',
-              precision: 'mediump',
-              stencil: false,
-              depth: true,
-              alpha: false,
-              logarithmicDepthBuffer: false,
-            });
-            mobileRenderer.setPixelRatio(
-              Math.min(window.devicePixelRatio || 1, 1.5),
-            );
-            mobileRenderer.shadowMap.enabled = false;
-            mobileRenderer.setClearColor(0x0b101d, 1);
-          }
           await xb.init(options);
           const renderer = xb.core.renderer;
           if (!(renderer instanceof THREE.WebGLRenderer)) {
@@ -1484,9 +1501,6 @@ document.addEventListener('DOMContentLoaded', () => {
             shadowsEnabled,
           );
           game.setBrightness(brightnessPercent);
-          if (isMobile) {
-            game.applyMobileGlobalSceneCleanup();
-          }
           game.syncViewportSize();
           updateDiagnosticBuildBadge();
           return true;
@@ -1525,9 +1539,6 @@ document.addEventListener('DOMContentLoaded', () => {
       shadowsEnabled,
     );
     game.setBrightness(brightnessPercent);
-    if (isMobile) {
-      game.applyMobileGlobalSceneCleanup();
-    }
     game.syncViewportSize();
     updateDiagnosticBuildBadge();
     return true;
@@ -2077,6 +2088,12 @@ document.addEventListener('DOMContentLoaded', () => {
   openLobbyBtn.addEventListener('click', openLobbySetupScreen);
   replayIntroBtn.addEventListener('click', () => startVisualNovelStory(0));
 
+  const backpackPipEl = document.getElementById('backpack-count-pip');
+  const backpackBtnEl = document.getElementById('backpack-action-btn');
+  const backpackListEl = document.getElementById('hud-backpack-list');
+  const autoSprintBtnEl = document.getElementById('autosprint-action-btn');
+  let lastBackpackSignature = '__uninitialized__';
+
   function refreshHudState() {
     updateDiagnosticBuildBadge();
     if (taskStatusEl) {
@@ -2126,48 +2143,48 @@ document.addEventListener('DOMContentLoaded', () => {
       hudInventoryStrip.classList.add('hidden');
       lastInventorySignature = '';
     }
-    // Sync Backpack count pip & drawer list + 1-Tap Auto-Sprint active visual state
+    // Sync Backpack count pip & drawer list + 1-Tap Auto-Sprint active visual state (only rebuild DOM when items change)
     const carriedForBag = game.getCarriedInventoryItems();
-    const backpackPipEl = document.getElementById('backpack-count-pip');
-    const backpackBtnEl = document.getElementById('backpack-action-btn');
-    const backpackListEl = document.getElementById('hud-backpack-list');
-    if (backpackPipEl) {
-      backpackPipEl.textContent = String(carriedForBag.length);
-      backpackPipEl.classList.toggle('hidden', carriedForBag.length === 0);
-    }
-    backpackBtnEl?.classList.toggle('has-items', carriedForBag.length > 0);
-    if (backpackListEl) {
-      backpackListEl.textContent = '';
-      if (carriedForBag.length === 0) {
-        const emptyMsg = document.createElement('div');
-        emptyMsg.className = 'hud-backpack-empty';
-        emptyMsg.textContent =
-          game.lang === 'hi'
-            ? 'अभी कोई चाबी या शापित अवशेष नहीं है।'
-            : 'No named keys or cursed relics collected yet.';
-        backpackListEl.appendChild(emptyMsg);
-      } else {
-        for (const item of carriedForBag) {
-          const row = document.createElement('div');
-          row.className = `hud-backpack-row${item.kind === 'relic' ? ' is-relic' : ''}`;
-          const icon = document.createElement('span');
-          icon.className = 'hud-backpack-row-icon';
-          icon.textContent = item.icon;
-          const textWrap = document.createElement('div');
-          const title = document.createElement('div');
-          title.className = 'hud-backpack-row-name';
-          title.textContent = game.lang === 'hi' ? item.labelHi : item.labelEn;
-          const purpose = document.createElement('div');
-          purpose.className = 'hud-backpack-row-purpose';
-          purpose.textContent =
-            game.lang === 'hi' ? item.purposeHi : item.purposeEn;
-          textWrap.append(title, purpose);
-          row.append(icon, textWrap);
-          backpackListEl.appendChild(row);
+    const bagSignature = `${game.lang}:${carriedForBag.map((it) => `${it.id}:${it.kind}`).join('|')}`;
+    if (bagSignature !== lastBackpackSignature) {
+      lastBackpackSignature = bagSignature;
+      if (backpackPipEl) {
+        backpackPipEl.textContent = String(carriedForBag.length);
+        backpackPipEl.classList.toggle('hidden', carriedForBag.length === 0);
+      }
+      backpackBtnEl?.classList.toggle('has-items', carriedForBag.length > 0);
+      if (backpackListEl) {
+        backpackListEl.textContent = '';
+        if (carriedForBag.length === 0) {
+          const emptyMsg = document.createElement('div');
+          emptyMsg.className = 'hud-backpack-empty';
+          emptyMsg.textContent =
+            game.lang === 'hi'
+              ? 'अभी कोई चाबी या शापित अवशेष नहीं है।'
+              : 'No named keys or cursed relics collected yet.';
+          backpackListEl.appendChild(emptyMsg);
+        } else {
+          for (const item of carriedForBag) {
+            const row = document.createElement('div');
+            row.className = `hud-backpack-row${item.kind === 'relic' ? ' is-relic' : ''}`;
+            const icon = document.createElement('span');
+            icon.className = 'hud-backpack-row-icon';
+            icon.textContent = item.icon;
+            const textWrap = document.createElement('div');
+            const title = document.createElement('div');
+            title.className = 'hud-backpack-row-name';
+            title.textContent = game.lang === 'hi' ? item.labelHi : item.labelEn;
+            const purpose = document.createElement('div');
+            purpose.className = 'hud-backpack-row-purpose';
+            purpose.textContent =
+              game.lang === 'hi' ? item.purposeHi : item.purposeEn;
+            textWrap.append(title, purpose);
+            row.append(icon, textWrap);
+            backpackListEl.appendChild(row);
+          }
         }
       }
     }
-    const autoSprintBtnEl = document.getElementById('autosprint-action-btn');
     if (autoSprintBtnEl) {
       autoSprintBtnEl.classList.toggle('active', game.autoSprintActive);
       autoSprintBtnEl.setAttribute('aria-pressed', String(game.autoSprintActive));
@@ -3485,6 +3502,7 @@ document.addEventListener('DOMContentLoaded', () => {
   syncProfileUI();
 
   const ensureLobbyScene3D = (): HorrorLobbyScene3D | null => {
+    startLobbyFpsLoop?.();
     if (lobbyScene3D) return lobbyScene3D;
     if (!lobby3dStage) return null;
     lobbyScene3D = new HorrorLobbyScene3D(lobby3dStage);
@@ -3497,35 +3515,41 @@ document.addEventListener('DOMContentLoaded', () => {
     return lobbyScene3D;
   };
 
-  // Live Lobby Top-Right FPS Indicator Badge
+  // Live Lobby Top-Right FPS Indicator Badge (stops automatically when Lobby is disposed)
   if (lobbyFpsBadge) {
     let fpsFrames = 0;
     let fpsLastSample = performance.now();
     const tickLobbyFps = (now: number) => {
-      if (!menuScreen.classList.contains('hidden')) {
-        fpsFrames++;
-        const elapsed = now - fpsLastSample;
-        if (elapsed >= 500) {
-          const measured = Math.max(
-            1,
-            Math.min(120, Math.round((fpsFrames * 1000) / elapsed)),
-          );
-          const cap = Number(fpsSettingSelect.value || 60);
-          const shown = Math.min(measured, cap >= 60 ? 60 : 30);
-          lobbyFpsBadge.textContent = `${shown} FPS`;
-          lobbyFpsBadge.classList.toggle('is-good', shown >= 48);
-          lobbyFpsBadge.classList.toggle('is-warn', shown >= 28 && shown < 48);
-          lobbyFpsBadge.classList.toggle('is-low', shown < 28);
-          fpsFrames = 0;
-          fpsLastSample = now;
-        }
-      } else {
+      if (menuScreen.classList.contains('hidden')) {
+        lobbyFpsRafId = 0;
+        return;
+      }
+      fpsFrames++;
+      const elapsed = now - fpsLastSample;
+      if (elapsed >= 500) {
+        const measured = Math.max(
+          1,
+          Math.min(120, Math.round((fpsFrames * 1000) / elapsed)),
+        );
+        const cap = Number(fpsSettingSelect.value || 60);
+        const shown = Math.min(measured, cap >= 60 ? 60 : 30);
+        lobbyFpsBadge.textContent = `${shown} FPS`;
+        lobbyFpsBadge.classList.toggle('is-good', shown >= 48);
+        lobbyFpsBadge.classList.toggle('is-warn', shown >= 28 && shown < 48);
+        lobbyFpsBadge.classList.toggle('is-low', shown < 28);
         fpsFrames = 0;
         fpsLastSample = now;
       }
-      window.requestAnimationFrame(tickLobbyFps);
+      lobbyFpsRafId = window.requestAnimationFrame(tickLobbyFps);
     };
-    window.requestAnimationFrame(tickLobbyFps);
+    startLobbyFpsLoop = () => {
+      if (!lobbyFpsRafId) {
+        fpsFrames = 0;
+        fpsLastSample = performance.now();
+        lobbyFpsRafId = window.requestAnimationFrame(tickLobbyFps);
+      }
+    };
+    startLobbyFpsLoop();
   }
 
   // Lobby Top-Right Settings Gear
@@ -3581,7 +3605,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   lobbyProfileBanner?.addEventListener('click', (e) => {
-    if ((e.target as HTMLElement | null)?.closest('#lobby-copy-uid-btn')) {
+    if (closestElement(e.target, '#lobby-copy-uid-btn')) {
       return;
     }
     e.stopPropagation();
@@ -3590,7 +3614,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   lobbyProfileBanner?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
-      if ((e.target as HTMLElement | null)?.closest('#lobby-copy-uid-btn')) {
+      if (closestElement(e.target, '#lobby-copy-uid-btn')) {
         return;
       }
       e.preventDefault();
@@ -3653,9 +3677,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Subtle, crisp one-shot UI button tap sound (never continuous oscillators)
   document.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement | null)?.closest<HTMLElement>(
-      'button, [role="tab"]',
-    );
+    const btn = closestElement(e.target, 'button, [role="tab"]');
     if (!btn || btn.hasAttribute('disabled')) return;
     game.synth.playUiTapSound();
   });
@@ -4045,6 +4067,13 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // Ensure launch overlay and initial studio splash screen are explicitly visible
+    launchOverlay.classList.remove('hidden', 'is-fading-out');
+    launchScreenStudio?.classList.remove('hidden', 'is-fading-out');
+    launchScreenLoading?.classList.add('hidden');
+    launchScreenLoading?.classList.remove('is-fading-out');
+    launchScreenTap?.classList.add('hidden');
+
     // Screen 1: Studio Logo Splash (2.5s total with smooth fade out)
     window.setTimeout(() => {
       launchScreenStudio?.classList.add('is-fading-out');
@@ -4097,7 +4126,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   launchScreenTap?.addEventListener('click', (e) => {
-    if ((e.target as HTMLElement | null)?.closest('#launch-privacy-link')) {
+    if (closestElement(e.target, '#launch-privacy-link')) {
       return;
     }
     if (
@@ -4114,7 +4143,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   launchScreenTap?.addEventListener('keydown', (e) => {
     if (
-      (e.target as HTMLElement | null)?.closest('#launch-privacy-link') ||
+      closestElement(e.target, '#launch-privacy-link') ||
       (privacyPolicyModal && !privacyPolicyModal.classList.contains('hidden'))
     ) {
       return;
@@ -4770,19 +4799,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const TOUCH_LOOK_SENSITIVITY = 0.0046;
 
   const isTouchInsideModalOrScroll = (target: EventTarget | null): boolean => {
-    if (!(target instanceof Element)) return false;
+    const el = target instanceof Element ? target : null;
+    if (!el || typeof el.closest !== 'function') return false;
     return Boolean(
-      target.closest(
+      el.closest(
         '.modal-scroll, [role="dialog"], .modal-backdrop, .ig-settings-card, .pro-settings-card, .pro-settings-content, .lobby-archive-card, .lobby-archive-body, .privacy-modal-card, .privacy-modal-body, .profile-modal-card, .profile-modal-body',
       ),
     );
   };
 
   const isHudInteractiveTarget = (target: EventTarget | null): boolean => {
-    if (!(target instanceof Element)) return false;
-    if (isTouchInsideModalOrScroll(target)) return true;
+    const el = target instanceof Element ? target : null;
+    if (!el || typeof el.closest !== 'function') return false;
+    if (isTouchInsideModalOrScroll(el)) return true;
     return Boolean(
-      target.closest(
+      el.closest(
         'button, input, select, textarea, a, .joystick-base, .controls-overlay, .hud-autosprint-slot, .hud-backpack-slot, .hud-backpack-drawer, .hud-circle-slot, .hud-radar-btn, .hud-map-icon-btn, #hud-minimap-container, .modal-backdrop, .modal-card, .ig-settings-card, #hud-layout-editor-overlay',
       ),
     );
@@ -5273,4 +5304,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Gameplay XR Blocks WebGLRenderer is lazily initialized in ensureXRGameplayInitialized()
   // after disposing the Lobby WebGLRenderer so mobile devices never exhaust WebGL contexts.
-});
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootstrapRaktPishachiniApp, {
+    once: true,
+  });
+} else {
+  bootstrapRaktPishachiniApp();
+}
+window.addEventListener('load', bootstrapRaktPishachiniApp, { once: true });

@@ -56,6 +56,16 @@ const _doorTipWorldPos = new THREE.Vector3();
 const _doorClosestPoint = new THREE.Vector3();
 const _flashLocalOrigin = new THREE.Vector3();
 const _flashLocalDir = new THREE.Vector3();
+const _flashStateScratch = {
+  origin: _flashLocalOrigin,
+  dir: _flashLocalDir,
+  intensity: 0,
+};
+const _companionGoalVecs = [
+  new THREE.Vector3(),
+  new THREE.Vector3(),
+  new THREE.Vector3(),
+];
 const _flashlightTipWorldPos = new THREE.Vector3();
 
 const _calmAmbientColor = new THREE.Color(0xffffff);
@@ -82,10 +92,10 @@ const _dawnHemiGroundColor = new THREE.Color(0x8c7056);
 const _dawnActiveSkyColor = new THREE.Color(0x6b82a8);
 const _nightHorizonFog = new THREE.FogExp2(0x0b101d, 0.015);
 
-// Exterior spawn: right beside the broken-down SUV on the Kali Ghati forest road (24m Forecourt + Outer Gate at z=34.0)
-const EXTERIOR_SPAWN_LOCAL_X = 1.35;
+// Exterior spawn: right beside the broken-down SUV (x=-1.45, z=41.0) on the Kali Ghati dirt road, 7.2m in front of the Outer Iron Gate (z=34.0)
+const EXTERIOR_SPAWN_LOCAL_X = 1.45;
 const EXTERIOR_SPAWN_LOCAL_Z = 41.2;
-const EXTERIOR_SPAWN_YAW = 0.15;
+const EXTERIOR_SPAWN_YAW = 0.12;
 
 export type StoryCameraLocation =
   | 'forest_road'
@@ -550,7 +560,12 @@ export class RaktPishachiniGame extends xb.Script {
   public applyCameraLookDelta(dx: number, dy: number, sensitivity = 0.0022) {
     if (this.gameState !== 'playing') return;
     if (this.isHudLayoutEditorOpen || this.isMinimapExpanded) return;
-    if (this.isMovementLockedByEntrySequence()) return;
+    if (
+      this.entryPhase === 'capture_jumpscare' ||
+      this.entryPhase === 'victory_escape_cutscene'
+    ) {
+      return;
+    }
     if (dx === 0 && dy === 0) return;
 
     const safeBaseSens =
@@ -962,6 +977,10 @@ export class RaktPishachiniGame extends xb.Script {
             return;
           }
           if (renderScene === xb.core.scene) {
+            if (this.lastMainSceneRenderTick === this.currentUpdateTick) {
+              // Avoid rendering the entire 32-room Haveli twice in the same animation frame
+              return;
+            }
             this.lastMainSceneRenderTick = this.currentUpdateTick;
             if (this.gameState === 'playing') {
               renderer.setClearColor(0x0b101d, 1);
@@ -2292,8 +2311,10 @@ export class RaktPishachiniGame extends xb.Script {
    *   preserving `color`, `map`, `emissive`, `transparent`, `opacity`, and `side`.
    * - Keeps `scene.fog = new THREE.FogExp2(0x0b101d, 0.009)` and `renderer.setClearColor(0x0b101d, 1)`.
    */
+  private mobileSceneCleaned = false;
+
   public applyMobileGlobalSceneCleanup() {
-    if (!this.isMobileDevice()) return;
+    if (!this.isMobileDevice() || this.mobileSceneCleaned) return;
 
     const renderer = xb.core.renderer;
     const scene = xb.core.scene;
@@ -2334,34 +2355,28 @@ export class RaktPishachiniGame extends xb.Script {
       this.flashlight.castShadow = false;
     }
 
-    const roots: THREE.Object3D[] = [];
-    if (scene) roots.push(scene);
-    roots.push(this, this.mansionRoot);
-    if (xb.core.camera) roots.push(xb.core.camera);
-    if (this.playerArms?.group) roots.push(this.playerArms.group);
-
+    const rootToClean = scene ?? this;
     const lightsToRemove: THREE.Light[] = [];
-    for (const root of roots) {
-      this.convertHierarchyToMobileLambert(root);
-      root.traverse((obj) => {
-        const light = obj as THREE.Light;
-        if (light.isLight) {
-          if (
-            light !== this.ambientLight &&
-            light !== this.moonKeyLight &&
-            light !== this.flashlight
-          ) {
-            lightsToRemove.push(light);
-          }
+    this.convertHierarchyToMobileLambert(rootToClean);
+    rootToClean.traverse((obj) => {
+      const light = obj as THREE.Light;
+      if (light.isLight) {
+        if (
+          light !== this.ambientLight &&
+          light !== this.moonKeyLight &&
+          light !== this.flashlight
+        ) {
+          lightsToRemove.push(light);
         }
-      });
-    }
+      }
+    });
 
     for (const extraLight of lightsToRemove) {
       extraLight.visible = false;
       extraLight.intensity = 0;
       extraLight.parent?.remove(extraLight);
     }
+    this.mobileSceneCleaned = true;
   }
 
   /**
@@ -2774,10 +2789,8 @@ export class RaktPishachiniGame extends xb.Script {
     if (this.gameState !== 'playing' || this.isAnyBlockingOverlayOpen()) {
       return;
     }
-    // Only skip Pointer Lock when explicitly in Mobile Touch mode (allow real PC mouse clicks in Auto & PC modes)
-    if (this.controlsMode === 'mobile' && !forceFromMouseClick) {
-      return;
-    }
+    // When clicking directly with a mouse on PC (forceFromMouseClick = true), always request pointer lock.
+    // Only skip automatic non-click pointer lock requests on mobile touch controls.
     if (!forceFromMouseClick && this.isMobileTouchControlsActive()) {
       return;
     }
@@ -3040,10 +3053,11 @@ export class RaktPishachiniGame extends xb.Script {
   }
 
   public isMovementLockedByEntrySequence(): boolean {
+    // Never freeze or lock player movement (WASD / Mobile Joystick) or camera look while Watchman Baba or friends speak
     return (
-      this.entryPhase !== 'exterior_walk' &&
-      this.entryPhase !== 'courtyard_approach' &&
-      this.entryPhase !== 'mission_active'
+      this.entryPhase === 'blackout_abduction' ||
+      this.entryPhase === 'capture_jumpscare' ||
+      this.entryPhase === 'victory_escape_cutscene'
     );
   }
 
@@ -3241,10 +3255,8 @@ export class RaktPishachiniGame extends xb.Script {
       } else {
         this.isPcMouseDragging = true;
         document.body.classList.add('playing-match', 'pc-mouse-dragging');
-        // Request Pointer Lock on PC mouse click (unless user explicitly forced Mobile Touch mode)
-        if (this.controlsMode !== 'mobile') {
-          this.requestGamePointerLock(true);
-        }
+        // Always request Pointer Lock on PC mouse click on the gameplay canvas
+        this.requestGamePointerLock(true);
       }
     });
 
@@ -3276,7 +3288,6 @@ export class RaktPishachiniGame extends xb.Script {
         return;
       }
       if (e.button !== 0) return;
-      if (this.controlsMode === 'mobile') return;
       if (isInteractiveUiTarget(e.target)) return;
       if (!document.pointerLockElement) {
         this.requestGamePointerLock(true);
@@ -3287,7 +3298,6 @@ export class RaktPishachiniGame extends xb.Script {
       if (this.gameState !== 'playing' || this.isAnyBlockingOverlayOpen()) {
         return;
       }
-      if (this.controlsMode === 'mobile') return;
       if (isInteractiveUiTarget(e.target)) return;
       if (!document.pointerLockElement) {
         this.requestGamePointerLock(true);
@@ -3301,7 +3311,12 @@ export class RaktPishachiniGame extends xb.Script {
       if (this.gameState !== 'playing' || this.isAnyBlockingOverlayOpen()) {
         return;
       }
-      if (this.isMovementLockedByEntrySequence()) return;
+      if (
+        this.entryPhase === 'capture_jumpscare' ||
+        this.entryPhase === 'victory_escape_cutscene'
+      ) {
+        return;
+      }
 
       const locked = this.isLocked || Boolean(document.pointerLockElement);
       if (locked) {
@@ -3394,44 +3409,33 @@ export class RaktPishachiniGame extends xb.Script {
     if (this.entryPhase !== 'exterior_walk' || !this.haveli) return;
     const token = ++this.entrySequenceToken;
     this.watchmanWarned = true;
-    this.entryPhase = 'guard_dialogue';
-    this.clearMoveInputs();
-    this.isPlayerMakingSound = false;
-    this.currentNoiseDb = 0;
+    // Keep full player movement (WASD / Mobile Joystick) and camera look (Mouse / Touch Look) 100% unlocked at all times!
+    this.isMiniCutsceneActive = false;
+    this.entryPhase = 'courtyard_approach';
 
-    // Position the 3 companions neatly beside/behind the player at the Outer Iron Gate (z = 34.0)
-    const cam = xb.core.camera as THREE.PerspectiveCamera | undefined;
-    if (cam) {
-      cam.getWorldPosition(_playerWorldPos);
-      const curLocalX = _playerWorldPos.x - this.mansionRoot.position.x;
-      const curLocalZ = Math.max(35.2, _playerWorldPos.z - this.mansionRoot.position.z);
-      this.mansionRoot.position.x = _playerWorldPos.x - THREE.MathUtils.clamp(curLocalX, -1.6, 1.6);
-      this.mansionRoot.position.z = _playerWorldPos.z - curLocalZ;
-      this.cameraYaw = -0.35;
-      this.cameraPitch = 0.02;
+    // Immediately swing open the Outer Iron Gate, reveal the Shiva Temple Key, and grant Watchman Baba's Blessed Bhabhut
+    this.haveli.mansionKeyGroup.position.set(9.55, 0.98, 27.2);
+    this.haveli.mansionKeyGroup.visible = true;
 
-      const gatePos = [
-        { x: -1.15, z: curLocalZ + 1.1 },
-        { x: 0.95, z: curLocalZ + 1.25 },
-        { x: -0.1, z: curLocalZ + 1.9 },
-      ];
-      this.companionFriends.forEach((comp, idx) => {
-        const gp = gatePos[idx];
-        if (!gp) return;
-        comp.char.root.visible = true;
-        comp.char.root.position.set(gp.x, 0, gp.z);
-        comp.char.root.rotation.y = Math.atan2(2.45 - gp.x, 35.0 - gp.z);
-        comp.currentSpeed = 0;
-      });
+    const frontGate = this.haveli.doors.find(
+      (d) => d.id === 'door_front_iron_gate',
+    );
+    if (frontGate && !frontGate.isOpen) {
+      frontGate.isOpen = true;
+      frontGate.targetAngle = frontGate.openAngle;
+      this.synth.playDoorCreak();
     }
 
-    // Line 1: Guard warns the 4 friends
+    this.blessedBhabhutCount = 1;
     this.entrySubtitleRukmini = false;
-    this.entrySubtitleSpeaker = 'चौकीदार बाबा (Watchman Baba)';
-    this.entrySubtitleText = 'अंदर मत जाओ बच्चों! इस हवेली में मौत का साया है!';
-    this.onChatLog?.('[चौकीदार बाबा]: "अंदर मत जाओ बच्चों! इस हवेली में मौत का साया है!"');
+    this.entrySubtitleSpeaker = '';
+    this.entrySubtitleText = '';
+    this.updateEscapeTaskStatus();
+    this.saveProgressToStorage();
     this.onHudUpdate?.();
 
+    // Line 1: Watchman Baba warns the 4 friends while player walks and looks freely
+    this.onChatLog?.('[चौकीदार बाबा]: "अंदर मत जाओ बच्चों! इस हवेली में मौत का साया है!"');
     await this.synth.speakSequenceUtterance(
       'अंदर मत जाओ बच्चों! इस हवेली में मौत का साया है!',
       'watchman',
@@ -3439,20 +3443,15 @@ export class RaktPishachiniGame extends xb.Script {
         rateMultiplier: 1.0,
         cancelPrevious: true,
         maxWaitMs: 8000,
-        speakerName: this.entrySubtitleSpeaker,
+        speakerName: 'चौकीदार बाबा (Watchman Baba)',
       },
     );
     if (token !== this.entrySequenceToken || this.gameState !== 'playing') return;
 
-    // Line 2: Friends insist on taking shelter from the storm
-    this.entrySubtitleSpeaker = 'कबीर (Kabir)';
-    this.entrySubtitleText =
-      'बाबा, बाहर तूफ़ान बहुत तेज़ है और गाड़ी खराब हो गई है... हमें अंदर जाना ही होगा!';
+    // Line 2: Kabir insists on taking shelter from the storm
     this.onChatLog?.(
       '[कबीर]: "बाबा, बाहर तूफ़ान बहुत तेज़ है और गाड़ी खराब हो गई है... हमें अंदर जाना ही होगा!"',
     );
-    this.onHudUpdate?.();
-
     await this.synth.speakSequenceUtterance(
       'बाबा, बाहर तूफ़ान बहुत तेज़ है और गाड़ी खराब हो गई है, हमें अंदर जाना ही होगा!',
       'kabir',
@@ -3460,131 +3459,25 @@ export class RaktPishachiniGame extends xb.Script {
         rateMultiplier: 1.0,
         cancelPrevious: false,
         maxWaitMs: 9000,
-        speakerName: this.entrySubtitleSpeaker,
+        speakerName: 'कबीर (Kabir)',
       },
     );
     if (token !== this.entrySequenceToken || this.gameState !== 'playing') return;
 
-    // Mini Camera Cutscene: Pan cleanly in open air to the Shiva Temple & Key (Shot 1), then Courtyard Stone Well (Shot 2)
-    this.isMiniCutsceneActive = true;
-    this.entryPhase = 'guard_cutscene_key';
-    this.entryAnimElapsed = 0;
-    this.haveli.mansionKeyGroup.position.set(9.55, 0.98, 27.2);
-    this.haveli.mansionKeyGroup.visible = true;
-
-    // Shot 1: Open Royal Forecourt air west of the Shiva Temple (y = 2.2),
-    // cleanly clear of walls/roof beams, framing the carved Shiva Temple Shikhar, Shivling & glowing key pedestal (9.55, 0.98, 27.2)
-    this.entryCutsceneCamStart.set(4.4, 2.2, 29.4);
-    this.entryCutsceneCamEnd.set(6.2, 2.2, 27.8);
-    this.entryCutsceneLookStart.set(11.4, 1.9, 27.2);
-    this.entryCutsceneLookEnd.set(9.55, 1.08, 27.2);
-
-    this.entrySubtitleSpeaker = 'चौकीदार बाबा (Watchman Baba)';
-    this.entrySubtitleText =
-      'हवेली के अंदर जाने की चाबी वहां शिव मंदिर के पास मिल जाएगी, जाओ ले लो!';
+    // Line 3: Watchman Baba tells them about the Shiva Temple key, burning the 4 relics in the well, and Blessed Bhabhut
     this.onChatLog?.(
-      '[चौकीदार बाबा]: "हवेली के अंदर जाने की चाबी वहां शिव मंदिर के पास मिल जाएगी, जाओ ले लो!"',
+      '[चौकीदार बाबा]: "हवेली के अंदर जाने की चाबी वहां शिव मंदिर के पास मिल जाएगी, जाओ ले लो! और यह लो मेरी अभिमंत्रित भभूत (F दबाएं)!"',
     );
-    this.onHudUpdate?.();
-
-    const keyWait = new Promise<void>((r) => window.setTimeout(r, 3200));
-    await Promise.all([
-      keyWait,
-      this.synth.speakSequenceUtterance(
-        'हवेली के अंदर जाने की चाबी वहां शिव मंदिर के पास मिल जाएगी, जाओ ले लो!',
-        'watchman',
-        {
-          rateMultiplier: 1.0,
-          cancelPrevious: false,
-          maxWaitMs: 10500,
-          speakerName: this.entrySubtitleSpeaker,
-        },
-      ),
-    ]);
-    if (token !== this.entrySequenceToken || this.gameState !== 'playing') return;
-
-    // Shot 2: Clean open-air sweep inside the massive 36m x 30m Walled Back Well Courtyard (x in [-18, 18], z in [-76, -46])
-    // at eye height y = 2.2, well clear of courtyard walls and pulley piers, looking directly at the ornate burning well (0, 0, -61.0)
-    this.entryPhase = 'guard_cutscene_well';
-    this.entryAnimElapsed = 0;
-    this.entryCutsceneCamStart.set(5.4, 2.2, -53.2);
-    this.entryCutsceneCamEnd.set(-4.8, 2.2, -53.6);
-    this.entryCutsceneLookStart.set(0, 1.5, -61.0);
-    this.entryCutsceneLookEnd.set(0, 1.15, -61.0);
-
-    this.entrySubtitleText =
-      'और अगर अंदर कुछ अनहोनी हो जाए, तो रुक्मिणी की सभी शापित चीज़ें ढूंढकर उस कुएं में जला देना, तभी वहां से ज़िंदा बाहर निकल पाओगे!';
-    this.onChatLog?.(
-      '[चौकीदार बाबा]: "और अगर अंदर कुछ अनहोनी हो जाए, तो रुक्मिणी की सभी शापित चीज़ें ढूंढकर उस कुएं में जला देना, तभी वहां से ज़िंदा बाहर निकल पाओगे!"',
-    );
-    this.onHudUpdate?.();
-
-    const wellWait = new Promise<void>((r) => window.setTimeout(r, 3600));
-    await Promise.all([
-      wellWait,
-      this.synth.speakSequenceUtterance(
-        'और अगर अंदर कुछ अनहोनी हो जाए, तो रुक्मिणी की सभी शापित चीज़ें ढूंढकर उस कुएं में जला देना, तभी वहां से ज़िंदा बाहर निकल पाओगे!',
-        'watchman',
-        {
-          rateMultiplier: 1.0,
-          cancelPrevious: false,
-          maxWaitMs: 15000,
-          speakerName: this.entrySubtitleSpeaker,
-        },
-      ),
-    ]);
-    if (token !== this.entrySequenceToken || this.gameState !== 'playing') return;
-
-    // Restore player camera right outside the open Outer Iron Gate (z = 34.0) facing the 24m Royal Front Forecourt!
-    this.isMiniCutsceneActive = false;
-    this.entrySubtitleSpeaker = '';
-    this.entrySubtitleText = '';
-
-    if (cam) {
-      cam.getWorldPosition(_playerWorldPos);
-      this.mansionRoot.position.x = _playerWorldPos.x - 0.0;
-      this.mansionRoot.position.z = _playerWorldPos.z - 35.5;
-      this.mansionRoot.position.y = 0;
-      cam.position.set(_playerWorldPos.x, 1.75, _playerWorldPos.z);
-      this.cameraYaw = 0;
-      this.cameraPitch = 0;
-      cam.rotation.order = 'YXZ';
-      cam.rotation.set(0, 0, 0);
-      cam.updateMatrixWorld(true);
-    }
-
-    const frontGate = this.haveli.doors.find(
-      (d) => d.id === 'door_front_iron_gate',
-    );
-    if (frontGate) {
-      frontGate.isOpen = true;
-      frontGate.targetAngle = frontGate.openAngle;
-      this.synth.playDoorCreak();
-    }
-
-    this.blessedBhabhutCount = 1;
-    this.entryPhase = 'courtyard_approach';
-    this.entrySubtitleRukmini = false;
-    this.entrySubtitleSpeaker = 'चौकीदार बाबा (Watchman Baba)';
-    this.entrySubtitleText =
-      'यह लो मेरी अभिमंत्रित भभूत (पवित्र राख)! अंदर रुक्मिणी पास आए तो F दबाना — एक बार बच जाओगे!';
-    this.entrySubtitleTimer = 6.2;
-    this.onChatLog?.(
-      '[चौकीदार बाबा]: ✨ बाबा ने तुम्हें 1 "अभिमंत्रित भभूत (पवित्र राख)" दी! (खतरे में F दबाएं या 2.5m पर अपने-आप काम करेगी)',
-    );
-    void this.synth.speakSequenceUtterance(
-      'यह लो मेरी अभिमंत्रित भभूत, अंदर रुक्मिणी पास आए तो F दबाना!',
+    await this.synth.speakSequenceUtterance(
+      'हवेली के अंदर जाने की चाबी वहां शिव मंदिर के पास मिल जाएगी, जाओ ले लो! और अगर अंदर कुछ अनहोनी हो जाए, तो रुक्मिणी की सभी शापित चीज़ें ढूंढकर उस कुएं में जला देना! यह लो मेरी अभिमंत्रित भभूत, अंदर रुक्मिणी पास आए तो F दबाना!',
       'watchman',
       {
         rateMultiplier: 1.0,
         cancelPrevious: false,
-        maxWaitMs: 9000,
-        speakerName: this.entrySubtitleSpeaker,
+        maxWaitMs: 16000,
+        speakerName: 'चौकीदार बाबा (Watchman Baba)',
       },
     );
-    this.updateEscapeTaskStatus();
-    this.saveProgressToStorage();
-    this.onHudUpdate?.();
   }
 
   /**
@@ -5627,14 +5520,21 @@ export class RaktPishachiniGame extends xb.Script {
         this.playerFloorY = THREE.MathUtils.clamp(data.playerFloorY, -4.5, 10.0);
       }
       if (data.mansionPos) {
-        const savedZ =
+        let savedX = data.mansionPos.x;
+        let savedZ =
           Math.abs(data.mansionPos.z - -18.5) < 0.2
             ? -14.2
             : data.mansionPos.z;
-        this.mansionRoot.position.set(data.mansionPos.x, 0, savedZ);
+        const savedLocalZ = -savedZ;
+        // If not yet past the blackout trap and saved near the Outer Iron Gate collider (z=34.0), spawn safely beside the SUV (7.2m in front of the gate)
+        if (!trapDone && savedLocalZ > 32.0 && savedLocalZ < 38.0) {
+          savedX = -EXTERIOR_SPAWN_LOCAL_X;
+          savedZ = -EXTERIOR_SPAWN_LOCAL_Z;
+        }
+        this.mansionRoot.position.set(savedX, 0, savedZ);
         if (this.haveli) {
           const restoredZone = this.haveli.getRoomAt(
-            -data.mansionPos.x,
+            -savedX,
             this.playerFloorY,
             -savedZ,
           );
@@ -5898,9 +5798,6 @@ export class RaktPishachiniGame extends xb.Script {
     this.shatterEffects = [];
     this.bhabhutBurstEffects = [];
     this.throwables = createThrowablePickups(this.mansionRoot);
-    if (this.haveli && this.isMobileDevice()) {
-      this.applyMobileGlobalSceneCleanup();
-    }
   }
 
   /**
@@ -6884,9 +6781,6 @@ export class RaktPishachiniGame extends xb.Script {
       _nightHorizonFog.density = this.isMobileDevice() ? 0.009 : 0.015;
       scene.fog = _nightHorizonFog;
     }
-    if (this.isMobileDevice()) {
-      this.applyMobileGlobalSceneCleanup();
-    }
     this.syncViewportSize();
   }
 
@@ -7258,7 +7152,8 @@ export class RaktPishachiniGame extends xb.Script {
           }
         }
 
-        const goalVec = new THREE.Vector3(desiredGoalX, desiredGoalY, desiredGoalZ);
+        const goalVec = _companionGoalVecs[slotIdx % _companionGoalVecs.length];
+        goalVec.set(desiredGoalX, desiredGoalY, desiredGoalZ);
         const totalDistToGoal = Math.hypot(
           desiredGoalX - fPos.x,
           desiredGoalZ - fPos.z,
@@ -7770,6 +7665,8 @@ export class RaktPishachiniGame extends xb.Script {
 
   private currentUpdateTick = 0;
   private lastMainSceneRenderTick = -1;
+  private hudUpdateAccumSec = 0;
+  private minimapUpdateAccumSec = 0;
 
   update() {
     this.currentUpdateTick++;
@@ -7859,6 +7756,12 @@ export class RaktPishachiniGame extends xb.Script {
           cam.lookAt(_storyLerpLookPos);
           cam.updateMatrixWorld(true);
         } else {
+          // Force camera world XZ to origin (0, 0) during non-XR first-person gameplay so local mansion coordinates never drift
+          if (cam.position.x !== 0 || cam.position.z !== 0) {
+            cam.position.x = 0;
+            cam.position.z = 0;
+            cam.updateMatrixWorld(true);
+          }
           cam.getWorldPosition(_playerWorldPos);
           const initLocalX = _playerWorldPos.x - this.mansionRoot.position.x;
           const initLocalZ = _playerWorldPos.z - this.mansionRoot.position.z;
@@ -7877,22 +7780,7 @@ export class RaktPishachiniGame extends xb.Script {
                 canvas.style.cursor = desiredCursor;
               }
             }
-            if (this.entryPhase === 'guard_dialogue') {
-              const targetGuardYaw = Math.atan2(
-                initLocalX - 2.45,
-                initLocalZ - 35.0,
-              );
-              const diff = Math.atan2(
-                Math.sin(targetGuardYaw - this.playerYaw),
-                Math.cos(targetGuardYaw - this.playerYaw),
-              );
-              this.playerYaw += diff * Math.min(1, dt * 4.5);
-              this.playerPitch = THREE.MathUtils.lerp(
-                this.playerPitch,
-                0.02,
-                Math.min(1, dt * 4),
-              );
-            } else if (
+            if (
               !this.isAnyBlockingOverlayOpen() &&
               !this.isMovementLockedByEntrySequence() &&
               !this.activeHidingSpot
@@ -8501,13 +8389,18 @@ export class RaktPishachiniGame extends xb.Script {
         this.entryPhase !== 'capture_jumpscare' &&
         this.entryPhase !== 'victory_escape_cutscene'
       ) {
-        this.onMinimapFrame?.(
-          dt,
-          curLocalX,
-          curLocalZ,
-          yaw,
-          this.currentFloorLevel,
-        );
+        this.minimapUpdateAccumSec += dt;
+        if (this.minimapUpdateAccumSec >= 0.25) {
+          const minimapDt = this.minimapUpdateAccumSec;
+          this.minimapUpdateAccumSec = 0;
+          this.onMinimapFrame?.(
+            minimapDt,
+            curLocalX,
+            curLocalZ,
+            yaw,
+            this.currentFloorLevel,
+          );
+        }
       }
 
       const isInCorridor =
@@ -8625,11 +8518,11 @@ export class RaktPishachiniGame extends xb.Script {
           .copy(this.flashlightTarget.position)
           .sub(this.flashlight.position)
           .normalize();
-        flashState = {
-          origin: _flashLocalOrigin,
-          dir: _flashLocalDir,
-          intensity: Math.min(1.25, this.flashlight.intensity / 3.0),
-        };
+        _flashStateScratch.intensity = Math.min(
+          1.25,
+          this.flashlight.intensity / 3.0,
+        );
+        flashState = _flashStateScratch;
       }
       lightningFlash = this.haveli.updateAtmosphere(
         time,
@@ -9370,7 +9263,7 @@ export class RaktPishachiniGame extends xb.Script {
       friend.update(dt, time, 0, _playerWorldPos, distToWitch < 5.5);
     }
 
-    // Guarantee renderer.render(scene, camera) runs every frame during active gameplay even if XR Blocks simulator compositor hasn't initialized yet
+    // Only fallback-render if XR Blocks' own loop did not render the main scene on the previous frame
     if (
       this.gameState === 'playing' &&
       cam &&
@@ -9378,27 +9271,17 @@ export class RaktPishachiniGame extends xb.Script {
       xb.core.renderer instanceof THREE.WebGLRenderer &&
       !xb.core.renderer.xr.isPresenting
     ) {
-      const simInitialized = Boolean(
-        (
-          xb.core as unknown as {
-            simulator?: { initialized?: boolean; compositor?: unknown };
-          }
-        ).simulator?.initialized &&
-          (
-            xb.core as unknown as {
-              simulator?: { initialized?: boolean; compositor?: unknown };
-            }
-          ).simulator?.compositor,
-      );
-      if (
-        !simInitialized ||
-        this.lastMainSceneRenderTick < this.currentUpdateTick - 1
-      ) {
+      if (this.lastMainSceneRenderTick < this.currentUpdateTick - 1) {
         xb.core.renderer.render(xb.core.scene, cam);
       }
     }
 
-    this.onHudUpdate?.();
+    // Throttle periodic HUD / dB / status DOM sync to once every 250ms (0.25s) so DOM updates never run every frame
+    this.hudUpdateAccumSec += dt;
+    if (this.hudUpdateAccumSec >= 0.25) {
+      this.hudUpdateAccumSec = 0;
+      this.onHudUpdate?.();
+    }
   }
 
   /**

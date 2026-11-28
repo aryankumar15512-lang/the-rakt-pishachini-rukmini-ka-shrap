@@ -813,6 +813,8 @@ export class HorrorLobbyScene3D {
   }
 
   public dispose() {
+    this.isActive = false;
+    this.stopLoop();
     this.setActive(false);
     window.removeEventListener('resize', this.boundResize);
     window.removeEventListener('pointermove', this.boundPointerMove);
