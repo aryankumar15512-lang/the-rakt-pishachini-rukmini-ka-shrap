@@ -1389,11 +1389,12 @@ const bootstrapRaktPishachiniApp = () => {
       host.style.zIndex = '1';
       host.style.backgroundColor = '#0b101d';
       host.style.pointerEvents = 'auto';
+      host.style.filter = '';
+      host.style.backdropFilter = '';
 
-      // Create a fresh <canvas> inside #game-canvas-host without calling forceContextLoss()
-      const existingCanvas = document.getElementById('game-webgl-canvas');
-      if (existingCanvas && existingCanvas.parentNode) {
-        existingCanvas.parentNode.removeChild(existingCanvas);
+      // Clear any old/duplicate canvases so ONLY ONE live <canvas> ever sits in the container
+      while (host.firstChild) {
+        host.removeChild(host.firstChild);
       }
       const gameCanvas = document.createElement('canvas');
       gameCanvas.id = 'game-webgl-canvas';
@@ -1403,7 +1404,7 @@ const bootstrapRaktPishachiniApp = () => {
       gameCanvas.width = initW;
       gameCanvas.height = initH;
       gameCanvas.style.cssText =
-        'position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; z-index: 1; background-color: #0b101d; filter: none; touch-action: none;';
+        'position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; z-index: 1; background-color: #0b101d; touch-action: none;';
       host.appendChild(gameCanvas);
 
       // Direct mouse click / mousedown on the gameplay canvas reliably requests Pointer Lock on PC
@@ -1447,7 +1448,9 @@ const bootstrapRaktPishachiniApp = () => {
       options.antialias = true;
       options.stencil = false;
       options.usePostprocessing = false;
+      options.enableSimulator = false;
       options.xrButton.enabled = false;
+      options.xrButton.alwaysAutostartSimulator = false;
       options.reticles.enabled = false;
       options.controllers.visualizeRays = false;
       options.setAppTitle('The Rakt Pishachini: Rukmini Ka Shrap');
@@ -1464,6 +1467,13 @@ const bootstrapRaktPishachiniApp = () => {
               'WebGLRenderer failed to initialize for 3D gameplay.',
             );
           }
+          if (renderer.domElement && renderer.domElement.parentElement !== host) {
+            while (host.firstChild) {
+              host.removeChild(host.firstChild);
+            }
+            host.appendChild(renderer.domElement);
+          }
+          (xb.core as unknown as { resume?: () => void }).resume?.();
           if (isMobile) {
             (renderer.capabilities as { precision?: string }).precision =
               'mediump';
@@ -2285,21 +2295,12 @@ const bootstrapRaktPishachiniApp = () => {
           edgeAlpha.toFixed(3),
         );
         heartbeatVignetteEl.style.setProperty(
-          '--hb-vignette-blur',
-          `${vignetteBlur}px`,
-        );
-        heartbeatVignetteEl.style.setProperty(
-          '--hb-backdrop-blur',
-          `${backdropBlur}px`,
-        );
-        heartbeatVignetteEl.style.setProperty(
           '--hb-mask-clear',
           `${maskClear.toFixed(1)}%`,
         );
       } else {
         heartbeatVignetteEl.style.opacity = '0';
         heartbeatVignetteEl.style.transform = 'scale(1.032)';
-        heartbeatVignetteEl.style.setProperty('--hb-backdrop-blur', '0px');
       }
     }
 
@@ -2554,15 +2555,8 @@ const bootstrapRaktPishachiniApp = () => {
               ? '2F'
               : '3F';
     }
-    if (showFpsCounter && hudFpsCounter && dt > 0) {
-      fpsFrameCount++;
-      fpsAccumTime += dt;
-      if (fpsAccumTime >= 0.4) {
-        const fpsVal = Math.max(1, Math.min(240, Math.round(fpsFrameCount / fpsAccumTime)));
-        hudFpsCounter.textContent = `${fpsVal} FPS`;
-        fpsFrameCount = 0;
-        fpsAccumTime = 0;
-      }
+    if (showFpsCounter && hudFpsCounter) {
+      hudFpsCounter.textContent = `${game.measuredFps} FPS`;
     }
     if (!game.isMinimapExpanded) return;
     if (!miniMap3D) {

@@ -901,8 +901,8 @@ export class RaktPishachiniGame extends xb.Script {
       }
       if (renderer.domElement) {
         renderer.domElement.style.backgroundColor = '#0b101d';
-        renderer.domElement.style.filter =
-          clampedBright === 100 ? 'none' : `brightness(${clampedBright}%)`;
+        renderer.domElement.style.filter = '';
+        renderer.domElement.style.backdropFilter = '';
       }
       scene.environment = null;
 
@@ -915,8 +915,8 @@ export class RaktPishachiniGame extends xb.Script {
         }
       }
 
-      // Guard renderer.render against lost WebGL contexts, XR Blocks simulatorScene overwrite,
-      // and WebGLDirectCompositor clearing issues so gameplay ALWAYS renders onto #0b101d dark night background
+      // Guard renderer.render against lost WebGL contexts while ensuring xb.core.scene
+      // renders directly to the screen canvas unconditionally every single frame during gameplay
       const guardedRenderer = renderer as THREE.WebGLRenderer & {
         __raktRenderGuarded?: boolean;
       };
@@ -967,27 +967,12 @@ export class RaktPishachiniGame extends xb.Script {
           if (this.gameState === 'menu' && !this.activeStoryShot) {
             return;
           }
-          if (
-            this.gameState === 'playing' &&
-            !renderer.xr.isPresenting &&
-            xb.core.scene &&
-            renderScene !== xb.core.scene
-          ) {
-            // Skip XR Blocks daytime simulator room pass during active 3D gameplay
-            return;
-          }
-          if (renderScene === xb.core.scene) {
-            if (this.lastMainSceneRenderTick === this.currentUpdateTick) {
-              // Avoid rendering the entire 32-room Haveli twice in the same animation frame
-              return;
-            }
-            this.lastMainSceneRenderTick = this.currentUpdateTick;
-            if (this.gameState === 'playing') {
-              renderer.setClearColor(0x0b101d, 1);
-              renderer.autoClear = true;
-              renderer.autoClearColor = true;
-              renderer.autoClearDepth = true;
-            }
+          if (renderScene === xb.core.scene && !renderer.xr.isPresenting) {
+            renderer.setRenderTarget(null);
+            renderer.setClearColor(0x0b101d, 1);
+            renderer.autoClear = true;
+            renderer.autoClearColor = true;
+            renderer.autoClearDepth = true;
           }
           origRender(renderScene, renderCamera);
         }) as typeof renderer.render;
@@ -5038,11 +5023,14 @@ export class RaktPishachiniGame extends xb.Script {
         : THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = isMobile
         ? 1.0
-        : Math.min(1.1, Math.max(0.8, clamped / 100));
+        : Math.min(1.3, Math.max(0.8, clamped / 100));
       if (renderer.domElement) {
-        renderer.domElement.style.filter =
-          clamped === 100 ? 'none' : `brightness(${clamped}%)`;
+        renderer.domElement.style.filter = '';
+        renderer.domElement.style.backdropFilter = '';
       }
+    }
+    if (isMobile && this.ambientLight) {
+      this.ambientLight.intensity = 1.2 * (clamped / 100);
     }
   }
 
@@ -5092,11 +5080,11 @@ export class RaktPishachiniGame extends xb.Script {
         : THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = isMobile
         ? 1.0
-        : Math.min(1.1, Math.max(0.8, clampedBright / 100));
+        : Math.min(1.3, Math.max(0.8, clampedBright / 100));
       if (renderer.domElement) {
         renderer.domElement.style.backgroundColor = '#0b101d';
-        renderer.domElement.style.filter =
-          clampedBright === 100 ? 'none' : `brightness(${clampedBright}%)`;
+        renderer.domElement.style.filter = '';
+        renderer.domElement.style.backdropFilter = '';
       }
       renderer.shadowMap.needsUpdate = true;
     }
@@ -6801,10 +6789,6 @@ export class RaktPishachiniGame extends xb.Script {
       renderer.setSize(w, h);
       const canvas = renderer.domElement;
       if (canvas) {
-        const clampedBright = Math.max(
-          80,
-          Math.min(130, Math.round(this.brightnessPercent)),
-        );
         canvas.style.position = 'fixed';
         canvas.style.inset = '0';
         canvas.style.width = '100vw';
@@ -6812,8 +6796,8 @@ export class RaktPishachiniGame extends xb.Script {
         canvas.style.display = 'block';
         canvas.style.zIndex = '1';
         canvas.style.backgroundColor = '#0b101d';
-        canvas.style.filter =
-          clampedBright === 100 ? 'none' : `brightness(${clampedBright}%)`;
+        canvas.style.filter = '';
+        canvas.style.backdropFilter = '';
       }
     }
 
@@ -7663,15 +7647,27 @@ export class RaktPishachiniGame extends xb.Script {
     return Number.isFinite(comp.stuckTimer) ? comp.stuckTimer : 0;
   }
 
-  private currentUpdateTick = 0;
-  private lastMainSceneRenderTick = -1;
+  public measuredFps = 60;
+  private fpsFrameCount = 0;
+  private fpsAccumSec = 0;
   private hudUpdateAccumSec = 0;
   private minimapUpdateAccumSec = 0;
 
   update() {
-    this.currentUpdateTick++;
     const rawDt = xb.getDeltaTime ? xb.getDeltaTime() : 0.016;
     const dt = Math.min(rawDt, 0.05);
+    if (rawDt > 0 && rawDt < 0.5) {
+      this.fpsFrameCount++;
+      this.fpsAccumSec += rawDt;
+      if (this.fpsAccumSec >= 0.4) {
+        this.measuredFps = Math.max(
+          1,
+          Math.min(240, Math.round(this.fpsFrameCount / this.fpsAccumSec)),
+        );
+        this.fpsFrameCount = 0;
+        this.fpsAccumSec = 0;
+      }
+    }
 
     if (this.hitstopTimer > 0) {
       this.hitstopTimer -= dt;
@@ -9263,17 +9259,9 @@ export class RaktPishachiniGame extends xb.Script {
       friend.update(dt, time, 0, _playerWorldPos, distToWitch < 5.5);
     }
 
-    // Only fallback-render if XR Blocks' own loop did not render the main scene on the previous frame
-    if (
-      this.gameState === 'playing' &&
-      cam &&
-      xb.core.scene &&
-      xb.core.renderer instanceof THREE.WebGLRenderer &&
-      !xb.core.renderer.xr.isPresenting
-    ) {
-      if (this.lastMainSceneRenderTick < this.currentUpdateTick - 1) {
-        xb.core.renderer.render(xb.core.scene, cam);
-      }
+    // Ensure camera world matrix is synced right before XR Blocks renders xb.core.scene every frame
+    if (cam && this.gameState !== 'menu') {
+      cam.updateMatrixWorld(true);
     }
 
     // Throttle periodic HUD / dB / status DOM sync to once every 250ms (0.25s) so DOM updates never run every frame

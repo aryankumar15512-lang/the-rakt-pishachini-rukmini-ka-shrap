@@ -31,7 +31,6 @@ body {
 canvas {
   background: #05070d !important;
   background-color: #05070d !important;
-  filter: none;
   touch-action: none !important;
   overscroll-behavior: none;
   user-select: none;
@@ -60,7 +59,6 @@ canvas {
   z-index: 1;
   background: #0b101d !important;
   background-color: #0b101d !important;
-  filter: none;
   touch-action: none !important;
 }
 
@@ -3256,7 +3254,6 @@ body.touch-device:not(.controls-mode-pc) .pc-pointer-lock-prompt,
   box-shadow:
     inset 0 0 var(--hb-edge-blur, 80px) rgba(140, 2, 16, var(--hb-edge-alpha, 0.58)),
     inset 0 0 var(--hb-deep-blur, 30px) rgba(34, 0, 4, 0.92);
-  filter: blur(var(--hb-vignette-blur, 3px));
   transition: opacity 0.08s linear;
   will-change: opacity, transform;
 }
@@ -3266,20 +3263,6 @@ body.touch-device:not(.controls-mode-pc) .pc-pointer-lock-prompt,
   position: absolute;
   inset: 0;
   pointer-events: none;
-  backdrop-filter: blur(var(--hb-backdrop-blur, 0px));
-  -webkit-backdrop-filter: blur(var(--hb-backdrop-blur, 0px));
-  mask-image: radial-gradient(
-    ellipse at center,
-    transparent var(--hb-mask-clear, 56%),
-    rgba(0, 0, 0, 0.5) 78%,
-    #000 95%
-  );
-  -webkit-mask-image: radial-gradient(
-    ellipse at center,
-    transparent var(--hb-mask-clear, 56%),
-    rgba(0, 0, 0, 0.5) 78%,
-    #000 95%
-  );
 }
 
 .heartbeat-vignette.heartbeat-active {
