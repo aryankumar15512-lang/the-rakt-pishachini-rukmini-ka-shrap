@@ -226,6 +226,7 @@ const bootstrapRaktPishachiniApp = () => {
   let openLobbySettingsModal = () => {};
 
   const applyDisplayAndControlToggles = () => {
+    game.autoSprintForwardEnabled = autoSprintBtnEnabled;
     document.body.classList.toggle('autosprint-disabled', !autoSprintBtnEnabled);
     document.body.classList.toggle('notch-safe-off', !notchScreenEnabled);
     document
@@ -409,7 +410,7 @@ const bootstrapRaktPishachiniApp = () => {
           Number.isFinite(parsed.sensitivity) &&
           parsed.sensitivity > 0
         ) {
-          game.cameraSensitivity = Math.max(0.15, Math.min(2.0, parsed.sensitivity));
+          game.cameraSensitivity = Math.max(0.1, Math.min(2.0, parsed.sensitivity));
         } else {
           game.cameraSensitivity = 1.0;
         }
@@ -4165,13 +4166,24 @@ const bootstrapRaktPishachiniApp = () => {
 
   runLaunchSequence();
 
-  // 1-Tap Auto-Sprint Button (Directly Above Joystick)
+  // 1-Tap Mobile SPRINT Button (Directly Above Joystick)
   const autoSprintActionBtn = document.getElementById('autosprint-action-btn');
+  let lastSprintTapMs = 0;
   const triggerAutoSprintToggle = (e?: Event) => {
     e?.stopPropagation();
+    const now = performance.now();
+    if (now - lastSprintTapMs < 160) return;
+    lastSprintTapMs = now;
     game.resumeSpatialAudio();
     if (game.gameState === 'playing') {
       game.toggleAutoSprint();
+      if (autoSprintActionBtn) {
+        autoSprintActionBtn.classList.toggle('active', game.autoSprintActive);
+        autoSprintActionBtn.setAttribute(
+          'aria-pressed',
+          String(game.autoSprintActive),
+        );
+      }
     }
   };
   autoSprintActionBtn?.addEventListener('click', triggerAutoSprintToggle);
@@ -4790,7 +4802,8 @@ const bootstrapRaktPishachiniApp = () => {
   let lookTouchId: number | null = null;
   let lastLookTouchX = 0;
   let lastLookTouchY = 0;
-  const TOUCH_LOOK_SENSITIVITY = 0.0046;
+  // ~2.5x faster Free Fire-style thumb swipe rotation, smoothly scaled by Settings sensitivity (10% - 200%)
+  const TOUCH_LOOK_SENSITIVITY = 0.0115;
 
   const isTouchInsideModalOrScroll = (target: EventTarget | null): boolean => {
     const el = target instanceof Element ? target : null;

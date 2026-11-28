@@ -478,7 +478,11 @@ export class RaktPishachiniGame extends xb.Script {
   public controlsMode: 'auto' | 'pc' | 'mobile' = 'auto';
   public isHudLayoutEditorOpen = false;
   public autoSprintActive = false;
+  public autoSprintForwardEnabled = true;
   public cameraSensitivity = 1.0;
+  private sprintBobPhase = 0;
+  private sprintBobOffsetY = 0;
+  private sprintFovBoost = 0;
   public graphicsQuality: 'low' | 'medium' | 'high' | 'ultra' =
     typeof navigator !== 'undefined' &&
     (/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ||
@@ -572,7 +576,7 @@ export class RaktPishachiniGame extends xb.Script {
       Number.isFinite(this.cameraSensitivity) && this.cameraSensitivity > 0
         ? this.cameraSensitivity
         : 1.0;
-    const effSens = sensitivity * THREE.MathUtils.clamp(safeBaseSens, 0.15, 2.5);
+    const effSens = sensitivity * THREE.MathUtils.clamp(safeBaseSens, 0.1, 2.5);
     this.playerYaw -= dx * effSens;
     if (this.activeHidingSpot) {
       const baseYaw = this.activeHidingSpot.lookYaw;
@@ -795,11 +799,13 @@ export class RaktPishachiniGame extends xb.Script {
           ? this.hideTransitionT
           : 1)
       : 0;
+    const bobAdj = this.activeHidingSpot ? 0 : this.sprintBobOffsetY;
     const rawEyeY =
       this.playerFloorY +
       1.7 +
       this.jumpOffsetY +
       this.crouchEyeOffsetY +
+      bobAdj +
       hideEyeAdj;
     const inBasementChamber =
       this.playerFloorY < -1.1 &&
@@ -8014,7 +8020,11 @@ export class RaktPishachiniGame extends xb.Script {
           (this.moveInput.forward ? 1 : 0) -
           (this.moveInput.backward ? 1 : 0) -
           this.moveInput.joyY;
-        if (this.autoSprintActive && !this.activeHidingSpot) {
+        if (
+          this.autoSprintActive &&
+          this.autoSprintForwardEnabled &&
+          !this.activeHidingSpot
+        ) {
           forwardAmt = Math.max(forwardAmt, 1);
         }
         let rightAmt =
@@ -8129,11 +8139,12 @@ export class RaktPishachiniGame extends xb.Script {
             forwardAmt /= len;
             rightAmt /= len;
           }
+          const walkSpeed = 3.9;
           const speedMult = this.isPlayerCrouching
             ? 2.25
             : this.isPlayerSprinting()
-              ? 5.6
-              : 3.9;
+              ? walkSpeed * 1.75
+              : walkSpeed;
           const moveStep = speedMult * dt;
 
           cam.rotation.order = 'YXZ';
@@ -8278,6 +8289,58 @@ export class RaktPishachiniGame extends xb.Script {
           this.currentLoudAlertRange = 26.0;
         }
         const isMovingHorizontally = !this.activeHidingSpot && len > 0.05;
+        const isActivelySprinting =
+          this.gameState === 'playing' &&
+          !this.isMiniCutsceneActive &&
+          !this.activeHidingSpot &&
+          !this.isPlayerCrouching &&
+          this.isGrounded &&
+          isMovingHorizontally &&
+          this.isPlayerSprinting();
+
+        if (isActivelySprinting) {
+          this.sprintBobPhase += dt * 13.5;
+          const targetBob = Math.sin(this.sprintBobPhase) * 0.055;
+          this.sprintBobOffsetY = THREE.MathUtils.lerp(
+            this.sprintBobOffsetY,
+            targetBob,
+            Math.min(1, dt * 16),
+          );
+        } else {
+          this.sprintBobOffsetY = THREE.MathUtils.lerp(
+            this.sprintBobOffsetY,
+            0,
+            Math.min(1, dt * 12),
+          );
+          if (Math.abs(this.sprintBobOffsetY) < 0.0005) {
+            this.sprintBobOffsetY = 0;
+          }
+        }
+
+        const targetFovBoost = isActivelySprinting ? 6.0 : 0.0;
+        this.sprintFovBoost = THREE.MathUtils.lerp(
+          this.sprintFovBoost,
+          targetFovBoost,
+          Math.min(1, dt * 8.5),
+        );
+        if (Math.abs(this.sprintFovBoost) < 0.02 && targetFovBoost === 0) {
+          this.sprintFovBoost = 0;
+        }
+        if (
+          cam &&
+          this.gameState === 'playing' &&
+          !this.isMiniCutsceneActive &&
+          this.entryPhase !== 'capture_jumpscare' &&
+          this.entryPhase !== 'victory_escape_cutscene'
+        ) {
+          const baseGameplayFov = this.storyDefaultFov || 60;
+          const desiredFov = baseGameplayFov + this.sprintFovBoost;
+          if (Math.abs(cam.fov - desiredFov) > 0.03) {
+            cam.fov = desiredFov;
+            cam.updateProjectionMatrix();
+          }
+        }
+
         const isJumpingInAir =
           !this.activeHidingSpot &&
           (!this.isGrounded || this.jumpOffsetY > 0.02);

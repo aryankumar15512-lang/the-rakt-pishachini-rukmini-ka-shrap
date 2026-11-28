@@ -4121,12 +4121,13 @@ body.controls-mode-pc .hud-autosprint-slot {
 }
 
 .autosprint-circle-btn.active {
-  background: rgba(217, 119, 6, 0.42);
-  border-color: #fbbf24;
-  color: #fef08a;
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.92), rgba(245, 158, 11, 0.9));
+  border-color: #fde047;
+  color: #fffbeb;
   box-shadow:
-    0 0 18px rgba(245, 158, 11, 0.55),
-    inset 0 0 10px rgba(254, 240, 138, 0.22);
+    0 0 22px rgba(249, 115, 22, 0.85),
+    0 0 10px rgba(250, 204, 21, 0.7),
+    inset 0 0 12px rgba(254, 240, 138, 0.45);
 }
 
 .hud-backpack-slot {
@@ -6946,9 +6947,9 @@ body.hud-layout-customized .hud-custom-placed {
   background: #f87171;
 }
 
-/* Hide 1-Tap Auto-Sprint button when turned Off in Settings > Controls */
-body.autosprint-disabled #hud-ctrl-autosprint {
-  display: none !important;
+/* Keep mobile SPRINT button visible even when Auto-Sprint auto-forward is Off (acts as 1-tap joystick sprint boost) */
+body.autosprint-disabled #hud-ctrl-autosprint .autosprint-circle-btn:not(.active) {
+  opacity: 0.9;
 }
 
 /* Disable Notch Safe-Area Insets when Notch Screen is turned Off in Display Settings */
