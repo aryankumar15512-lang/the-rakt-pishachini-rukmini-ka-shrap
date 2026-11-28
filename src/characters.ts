@@ -2907,10 +2907,14 @@ export function createHumanoid(options: HumanoidOptions): HumanoidCharacter {
   let lanternLight: THREE.PointLight | undefined;
   let lanternFlameMesh: THREE.Mesh | undefined;
   let lanternGlassMat: THREE.MeshStandardMaterial | undefined;
+  const lanternParentQuat = new THREE.Quaternion();
+  const lanternSwayQuat = new THREE.Quaternion();
+  const lanternSwayEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 
   if (options.hasLantern) {
     lanternGroup = new THREE.Group();
-    lanternGroup.position.set(0, -0.075, 0.045);
+    // Anchor top of the wire bail handle directly inside Watchman Baba's curled right fingers
+    lanternGroup.position.set(0, -0.078, 0.018);
     rightHand.add(lanternGroup);
 
     const brassMat = new THREE.MeshStandardMaterial({
@@ -3017,13 +3021,27 @@ export function createHumanoid(options: HumanoidOptions): HumanoidCharacter {
     if (!options.disableLights) {
       lanternLight = new THREE.PointLight(
         options.lanternLightColor ?? 0xff9e38,
-        3.1,
-        7.8,
-        1.75,
+        3.2,
+        8.2,
+        1.7,
       );
       lanternLight.position.set(0, -0.185, 0.02);
       lanternGroup.add(lanternLight);
     }
+
+    // Initialize default lantern-holding arm pose & world-vertical hang so frame 0 is already upright
+    rightUpperArm.rotation.x = -0.8;
+    rightUpperArm.rotation.z = -0.14;
+    rightForearm.rotation.x = -0.76;
+    lanternParentQuat
+      .copy(pelvis.quaternion)
+      .multiply(torso.quaternion)
+      .multiply(chest.quaternion)
+      .multiply(rightUpperArm.quaternion)
+      .multiply(rightForearm.quaternion)
+      .multiply(rightHand.quaternion)
+      .invert();
+    lanternGroup.quaternion.copy(lanternParentQuat);
   }
 
   // ============================================================================
@@ -3771,20 +3789,39 @@ export function createHumanoid(options: HumanoidOptions): HumanoidCharacter {
           rightUpperArm.rotation.x = 0;
           rightForearm.rotation.x = 0;
         }
+        if (lanternGroup) {
+          updateLanternVerticalHang(time, moveSpeed);
+        }
         return;
       }
 
-      // Warm organic candle-flame flicker & subtle swing for Watchman Baba's antique brass lantern
-      if (lanternGroup) {
-        const swayBoost = 1 + Math.min(moveSpeed, 3.0) * 0.45;
-        lanternGroup.rotation.z = Math.sin(time * 2.1) * 0.055 * swayBoost;
-        lanternGroup.rotation.x = Math.cos(time * 1.7) * 0.045 * swayBoost;
+      // Helper: keep Watchman Baba's lantern hanging strictly vertically downward from his hand grip
+      // by inverting the parent arm/torso rotation chain, then applying gentle storm-wind sway & warm amber flicker.
+      function updateLanternVerticalHang(curTime: number, curMoveSpeed: number) {
+        if (!lanternGroup) return;
+        const swayBoost = 1 + Math.min(curMoveSpeed, 3.0) * 0.4;
+        lanternParentQuat
+          .copy(pelvis.quaternion)
+          .multiply(torso.quaternion)
+          .multiply(chest.quaternion)
+          .multiply(rightUpperArm.quaternion)
+          .multiply(rightForearm.quaternion)
+          .multiply(rightHand.quaternion)
+          .invert();
+        lanternSwayEuler.set(
+          Math.cos(curTime * 1.65 + breathPhase) * 0.055 * swayBoost,
+          0,
+          Math.sin(curTime * 2.15 + breathPhase) * 0.085 * swayBoost,
+        );
+        lanternSwayQuat.setFromEuler(lanternSwayEuler);
+        lanternGroup.quaternion.copy(lanternParentQuat).multiply(lanternSwayQuat);
+
         const flicker =
-          Math.sin(time * 9.7) * 0.26 +
-          Math.cos(time * 16.3) * 0.16 +
-          Math.sin(time * 27.1) * 0.08;
+          Math.sin(curTime * 9.7) * 0.26 +
+          Math.cos(curTime * 16.3) * 0.16 +
+          Math.sin(curTime * 27.1) * 0.08;
         if (lanternLight) {
-          lanternLight.intensity = 3.1 + flicker;
+          lanternLight.intensity = 3.2 + flicker;
         }
         if (lanternFlameMesh) {
           lanternFlameMesh.scale.set(
@@ -3794,7 +3831,7 @@ export function createHumanoid(options: HumanoidOptions): HumanoidCharacter {
           );
         }
         if (lanternGlassMat) {
-          lanternGlassMat.emissiveIntensity = 0.85 + flicker * 0.22;
+          lanternGlassMat.emissiveIntensity = 0.95 + flicker * 0.24;
         }
       }
 
@@ -3840,6 +3877,7 @@ export function createHumanoid(options: HumanoidOptions): HumanoidCharacter {
           0.26,
           5.5,
         );
+        updateLanternVerticalHang(time, moveSpeed);
         return;
       }
 
@@ -3864,6 +3902,7 @@ export function createHumanoid(options: HumanoidOptions): HumanoidCharacter {
 
         updateSmoothHeadLook(Math.sin(time * 3.8) * 0.32, 0.04, 0.65, 0.2, 7.0);
         pelvis.position.y = THREE.MathUtils.damp(pelvis.position.y, PELVIS_Y - 0.03, 10, safeDt);
+        updateLanternVerticalHang(time, moveSpeed);
         return;
       }
 
@@ -4089,6 +4128,9 @@ export function createHumanoid(options: HumanoidOptions): HumanoidCharacter {
           smoothMoveBlend > 0.5 ? 4.2 : 5.2,
         );
       }
+
+      // Keep Watchman Baba's antique lantern hanging vertically downward under gravity with subtle storm-wind sway
+      updateLanternVerticalHang(time, moveSpeed);
     },
 
     async loadGLB(urlOrBuffer: string | ArrayBuffer): Promise<boolean> {

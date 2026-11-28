@@ -811,7 +811,6 @@ const bootstrapRaktPishachiniApp = () => {
   const vnTextStage = document.getElementById('vn-text-stage')!;
   const vnControlsBar = document.getElementById('vn-controls-bar')!;
   const vnLightningFlash = document.getElementById('vn-lightning-flash')!;
-  const vnBlackoutFinal = document.getElementById('vn-blackout-final')!;
   const vnPrevBtn = document.getElementById('vn-prev-btn')!;
   const vnNextBtn = document.getElementById('vn-next-btn')!;
   const vnAutoplayBtn = document.getElementById('vn-autoplay-btn')!;
@@ -820,18 +819,11 @@ const bootstrapRaktPishachiniApp = () => {
   ) as HTMLInputElement;
   const toggle3dIntroBtn = document.getElementById('toggle-3d-intro-btn')!;
   const backToVnBtn = document.getElementById('back-to-vn-btn')!;
-  const vnStartGameBtn = document.getElementById('vn-start-game-btn')!;
-  const vnOpenLobbyBtn = document.getElementById('vn-open-lobby-btn')!;
-  const vnReplayStoryBtn = document.getElementById('vn-replay-story-btn')!;
 
   const cinematicCanvas = document.getElementById(
     'cinematic-3d-canvas',
   ) as HTMLCanvasElement;
   const introVideo = document.getElementById('intro-video') as HTMLVideoElement;
-  const introEndingOverlay = document.getElementById('intro-ending-overlay')!;
-  const pressStartBtn = document.getElementById('press-start-btn')!;
-  const openLobbyBtn = document.getElementById('open-lobby-btn')!;
-  const replayIntroBtn = document.getElementById('replay-intro-btn')!;
   const sceneSelectorOverlay = document.getElementById(
     'scene-selector-overlay',
   )!;
@@ -851,9 +843,18 @@ const bootstrapRaktPishachiniApp = () => {
     photoCaptionEl: vnPhotoCaption,
     soundIndicatorEl: vnSoundIndicator,
     lightningFlashEl: vnLightningFlash,
-    blackoutFinalEl: vnBlackoutFinal,
     sceneDotsContainer: vnSceneDots,
   });
+  vnDirector.onStartGameRequested = () => {
+    pausedFromState = null;
+    isStoryPaused = false;
+    pauseModal?.classList.add('hidden');
+    pauseSkipStoryBtn?.classList.add('hidden');
+    skipOverlay.classList.add('hidden');
+    storyPauseBtn?.classList.add('hidden');
+    skipStoryBtn.classList.add('hidden');
+    void launchDefaultSingleplayerMatch();
+  };
   vnDirector.setJumpscareIntensity(
     parseSliderPercent(jumpscareIntensityInput.value, 80),
   );
@@ -1138,18 +1139,29 @@ const bootstrapRaktPishachiniApp = () => {
     cutsceneBtn3.classList.toggle('active', sceneId === 'scene3');
   }
 
+  let storyFadeOutTimer: number | null = null;
+  let isLaunchingGameplayFromStory = false;
+
   function showIntroCutToBlackEnding() {
     cutsceneDirector.stop();
     introVideo.pause();
-    introEndingOverlay.classList.remove('hidden');
     skipOverlay.classList.add('hidden');
+    storyPauseBtn?.classList.add('hidden');
+    skipStoryBtn.classList.add('hidden');
     sceneSelectorOverlay.classList.add('hidden');
+    void launchDefaultSingleplayerMatch();
   }
 
   function startVisualNovelStory(sceneIdx = 0) {
+    if (storyFadeOutTimer !== null) {
+      window.clearTimeout(storyFadeOutTimer);
+      storyFadeOutTimer = null;
+    }
+    isLaunchingGameplayFromStory = false;
     disposeLobbyScene3D();
     pausedFromState = null;
     isStoryPaused = false;
+    document.body.classList.remove('playing-match');
     pauseModal?.classList.add('hidden');
     pauseSkipStoryBtn?.classList.add('hidden');
     cutsceneDirector.stop();
@@ -1157,15 +1169,16 @@ const bootstrapRaktPishachiniApp = () => {
     introVideo.classList.add('hidden');
     cinematicCanvas.classList.add('hidden');
     sceneSelectorOverlay.classList.add('hidden');
-    introEndingOverlay.classList.add('hidden');
-    vnBlackoutFinal.classList.add('hidden');
 
     vnPhotoCanvas.classList.remove('hidden');
     vnTopBar.classList.add('hidden');
     vnTextStage.classList.add('hidden');
     vnControlsBar.classList.add('hidden');
     skipOverlay.classList.remove('hidden');
+    storyPauseBtn?.classList.remove('hidden');
+    skipStoryBtn.classList.remove('hidden');
     menuScreen.classList.add('hidden');
+    storyScreen.classList.remove('story-fading-out');
     storyScreen.classList.remove('hidden');
 
     game.exitStoryCameraMode();
@@ -1181,21 +1194,27 @@ const bootstrapRaktPishachiniApp = () => {
 
   function playCutsceneScene(sceneId: CutsceneId) {
     const token = ++activeCutsceneToken;
+    if (storyFadeOutTimer !== null) {
+      window.clearTimeout(storyFadeOutTimer);
+      storyFadeOutTimer = null;
+    }
     disposeLobbyScene3D();
+    document.body.classList.remove('playing-match');
     game.synth.setGameplayAudioEnabled(false);
     vnDirector.stop();
     vnPhotoCanvas.classList.add('hidden');
     vnTopBar.classList.add('hidden');
     vnTextStage.classList.add('hidden');
     vnControlsBar.classList.add('hidden');
-    vnBlackoutFinal.classList.add('hidden');
 
     introVideo.pause();
     introVideo.classList.add('hidden');
     cinematicCanvas.classList.remove('hidden');
-    introEndingOverlay.classList.add('hidden');
     sceneSelectorOverlay.classList.add('hidden');
+    storyScreen.classList.remove('story-fading-out');
     skipOverlay.classList.remove('hidden');
+    storyPauseBtn?.classList.remove('hidden');
+    skipStoryBtn.classList.remove('hidden');
 
     updateCutsceneButtons(sceneId);
     if (!cutsceneDirector.isRunning) {
@@ -1646,9 +1665,10 @@ const bootstrapRaktPishachiniApp = () => {
     game.resumeSpatialAudio();
     applyAndSaveGameSettings();
     document.body.classList.add('playing-match');
-    vnBlackoutFinal.classList.add('hidden');
-    introEndingOverlay.classList.add('hidden');
-    storyScreen.classList.add('hidden');
+    // Immediately hide Pause (ESC) and Skip Story buttons the instant gameplay starts
+    skipOverlay.classList.add('hidden');
+    storyPauseBtn?.classList.add('hidden');
+    skipStoryBtn.classList.add('hidden');
     menuScreen.classList.add('hidden');
     pauseModal?.classList.add('hidden');
     pauseSkipStoryBtn?.classList.add('hidden');
@@ -1658,6 +1678,20 @@ const bootstrapRaktPishachiniApp = () => {
     hud.style.background = 'transparent';
     if (playerHandView) {
       playerHandView.classList.add('hidden');
+    }
+    // Smoothly fade story screen away over live 3D gameplay (non-blocking: pointer-events: none)
+    if (!storyScreen.classList.contains('hidden')) {
+      storyScreen.classList.add('story-fading-out');
+      if (storyFadeOutTimer !== null) {
+        window.clearTimeout(storyFadeOutTimer);
+      }
+      storyFadeOutTimer = window.setTimeout(() => {
+        storyScreen.classList.add('hidden');
+        storyScreen.classList.remove('story-fading-out');
+        storyFadeOutTimer = null;
+      }, 420);
+    } else {
+      storyScreen.classList.remove('story-fading-out');
     }
     game.syncViewportSize();
     updateDiagnosticBuildBadge();
@@ -1683,24 +1717,39 @@ const bootstrapRaktPishachiniApp = () => {
   }
 
   const launchDefaultSingleplayerMatch = async () => {
-    const fallbackName = playerNameInput.value.trim() || 'Aarav';
-    playerNameInput.value = fallbackName;
-    savePlayerNameToStorage(fallbackName);
-    game.lang = (langSelect.value as LanguageCode) || 'hi';
-    game.playerName = fallbackName;
-    game.roomCode = roomCodeInput.value.trim() || '1992';
-    game.playerCount = 1;
-    game.requiredItems = 4;
-    game.matchStartTimeMs = Date.now();
-    const ready = await ensureXRGameplayInitialized();
-    if (!ready) return;
-    game.resetMatch();
-    await skipStoryToGame(false);
+    if (isLaunchingGameplayFromStory) return;
+    isLaunchingGameplayFromStory = true;
+    try {
+      skipOverlay.classList.add('hidden');
+      storyPauseBtn?.classList.add('hidden');
+      skipStoryBtn.classList.add('hidden');
+      const fallbackName = playerNameInput.value.trim() || 'Aarav';
+      playerNameInput.value = fallbackName;
+      savePlayerNameToStorage(fallbackName);
+      game.lang = (langSelect.value as LanguageCode) || 'hi';
+      game.playerName = fallbackName;
+      game.roomCode = roomCodeInput.value.trim() || '1992';
+      game.playerCount = 1;
+      game.requiredItems = 4;
+      game.matchStartTimeMs = Date.now();
+      const ready = await ensureXRGameplayInitialized();
+      if (!ready) return;
+      game.resetMatch();
+      await skipStoryToGame(false);
+    } finally {
+      isLaunchingGameplayFromStory = false;
+    }
   };
 
   const openLobbySetupScreen = () => {
+    if (storyFadeOutTimer !== null) {
+      window.clearTimeout(storyFadeOutTimer);
+      storyFadeOutTimer = null;
+    }
+    isLaunchingGameplayFromStory = false;
     pausedFromState = null;
     isStoryPaused = false;
+    document.body.classList.remove('playing-match');
     game.releaseGamePointerLock();
     game.synth.stopSequenceSpeech();
     pauseModal?.classList.add('hidden');
@@ -1728,8 +1777,10 @@ const bootstrapRaktPishachiniApp = () => {
     cutsceneDirector.stop();
     game.exitStoryCameraMode();
     game.synth.setGameplayAudioEnabled(false);
-    vnBlackoutFinal.classList.add('hidden');
-    introEndingOverlay.classList.add('hidden');
+    skipOverlay.classList.add('hidden');
+    storyPauseBtn?.classList.add('hidden');
+    skipStoryBtn.classList.add('hidden');
+    storyScreen.classList.remove('story-fading-out');
     storyScreen.classList.add('hidden');
     menuScreen.classList.remove('hidden');
     syncLobbyContinueVisibility();
@@ -2082,23 +2133,6 @@ const bootstrapRaktPishachiniApp = () => {
   backToVnBtn.addEventListener('click', () => {
     startVisualNovelStory(vnDirector.currentSceneIndex);
   });
-
-  vnStartGameBtn.addEventListener('click', () => {
-    void requestMobileFullscreenLandscape();
-    game.requestImmediateDesktopPointerLock();
-    void launchDefaultSingleplayerMatch();
-  });
-  vnOpenLobbyBtn.addEventListener('click', openLobbySetupScreen);
-  vnReplayStoryBtn.addEventListener('click', () => startVisualNovelStory(0));
-
-  // 3D Intro Cut-to-Black Screen Controls
-  pressStartBtn.addEventListener('click', () => {
-    void requestMobileFullscreenLandscape();
-    game.requestImmediateDesktopPointerLock();
-    void launchDefaultSingleplayerMatch();
-  });
-  openLobbyBtn.addEventListener('click', openLobbySetupScreen);
-  replayIntroBtn.addEventListener('click', () => startVisualNovelStory(0));
 
   const backpackPipEl = document.getElementById('backpack-count-pip');
   const backpackBtnEl = document.getElementById('backpack-action-btn');
@@ -4377,6 +4411,9 @@ const bootstrapRaktPishachiniApp = () => {
     isStoryPaused = false;
     pauseModal?.classList.add('hidden');
     pauseSkipStoryBtn.classList.add('hidden');
+    skipOverlay.classList.add('hidden');
+    storyPauseBtn?.classList.add('hidden');
+    skipStoryBtn.classList.add('hidden');
     game.requestImmediateDesktopPointerLock();
     void launchDefaultSingleplayerMatch();
   });
@@ -4728,6 +4765,9 @@ const bootstrapRaktPishachiniApp = () => {
     isStoryPaused = false;
     pauseModal?.classList.add('hidden');
     pauseSkipStoryBtn?.classList.add('hidden');
+    skipOverlay.classList.add('hidden');
+    storyPauseBtn?.classList.add('hidden');
+    skipStoryBtn.classList.add('hidden');
     game.requestImmediateDesktopPointerLock();
     void launchDefaultSingleplayerMatch();
   });

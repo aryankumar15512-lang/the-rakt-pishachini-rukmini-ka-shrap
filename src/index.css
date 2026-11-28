@@ -586,6 +586,13 @@ h2.game-title {
   justify-content: center;
   align-items: center;
   padding: 0;
+  opacity: 1;
+  transition: opacity 0.42s ease-out;
+}
+
+#story-screen.story-fading-out {
+  opacity: 0;
+  pointer-events: none !important;
 }
 
 .video-container {
@@ -1233,6 +1240,16 @@ h2.game-title {
   bottom: 16px;
   right: 18px;
   z-index: 30;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.skip-overlay.hidden,
+body.playing-match #skip-overlay,
+body.playing-match #story-pause-btn,
+body.playing-match #skip-story-btn {
+  display: none !important;
 }
 
 .skip-btn {

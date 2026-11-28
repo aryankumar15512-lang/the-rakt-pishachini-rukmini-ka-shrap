@@ -3441,17 +3441,36 @@ export class RaktPishachiniGame extends xb.Script {
   }
 
   private async runGuardEncounterSequence() {
-    if (this.entryPhase !== 'exterior_walk' || !this.haveli) return;
+    if (this.watchmanWarned || this.entryPhase !== 'exterior_walk' || !this.haveli) {
+      return;
+    }
     const token = ++this.entrySequenceToken;
     this.watchmanWarned = true;
     // Keep full player movement (WASD / Mobile Joystick) and camera look (Mouse / Touch Look) 100% unlocked at all times!
     this.isMiniCutsceneActive = false;
-    this.entryPhase = 'courtyard_approach';
+    this.entrySubtitleRukmini = false;
+    this.entrySubtitleSpeaker = '';
+    this.entrySubtitleText = '';
 
-    // Immediately swing open the Outer Iron Gate, reveal the Shiva Temple Key, and grant Watchman Baba's Blessed Bhabhut
+    // Reveal the Shiva Temple Key inside the courtyard so it's ready once the gate opens
     this.haveli.mansionKeyGroup.position.set(9.55, 0.98, 27.2);
     this.haveli.mansionKeyGroup.visible = true;
 
+    // Single short Hindi line spoken ONCE by Watchman Baba (no repeating intro story or Kabir reply)
+    const babaLine =
+      'अच्छा, अंदर जा ही रहे हो तो यह लो मेरी अभिमंत्रित भभूत, मुसीबत में काम आएगी... और हवेली के अंदर जाने की चाबी तुम्हें वहां शिव मंदिर के पास मिल जाएगी।';
+    this.onChatLog?.(`[चौकीदार बाबा]: "${babaLine}"`);
+    await this.synth.speakSequenceUtterance(babaLine, 'watchman', {
+      rateMultiplier: 1.0,
+      cancelPrevious: true,
+      maxWaitMs: 12000,
+      speakerName: 'चौकीदार बाबा (Watchman Baba)',
+    });
+    if (token !== this.entrySequenceToken || this.gameState !== 'playing') return;
+
+    // Immediately grant Blessed Bhabhut & smoothly unlock/open the Outer Iron Gate as Baba finishes
+    this.blessedBhabhutCount = 1;
+    this.entryPhase = 'courtyard_approach';
     const frontGate = this.haveli.doors.find(
       (d) => d.id === 'door_front_iron_gate',
     );
@@ -3461,58 +3480,9 @@ export class RaktPishachiniGame extends xb.Script {
       this.synth.playDoorCreak();
     }
 
-    this.blessedBhabhutCount = 1;
-    this.entrySubtitleRukmini = false;
-    this.entrySubtitleSpeaker = '';
-    this.entrySubtitleText = '';
     this.updateEscapeTaskStatus();
     this.saveProgressToStorage();
     this.onHudUpdate?.();
-
-    // Line 1: Watchman Baba warns the 4 friends while player walks and looks freely
-    this.onChatLog?.('[चौकीदार बाबा]: "अंदर मत जाओ बच्चों! इस हवेली में मौत का साया है!"');
-    await this.synth.speakSequenceUtterance(
-      'अंदर मत जाओ बच्चों! इस हवेली में मौत का साया है!',
-      'watchman',
-      {
-        rateMultiplier: 1.0,
-        cancelPrevious: true,
-        maxWaitMs: 8000,
-        speakerName: 'चौकीदार बाबा (Watchman Baba)',
-      },
-    );
-    if (token !== this.entrySequenceToken || this.gameState !== 'playing') return;
-
-    // Line 2: Kabir insists on taking shelter from the storm
-    this.onChatLog?.(
-      '[कबीर]: "बाबा, बाहर तूफ़ान बहुत तेज़ है और गाड़ी खराब हो गई है... हमें अंदर जाना ही होगा!"',
-    );
-    await this.synth.speakSequenceUtterance(
-      'बाबा, बाहर तूफ़ान बहुत तेज़ है और गाड़ी खराब हो गई है, हमें अंदर जाना ही होगा!',
-      'kabir',
-      {
-        rateMultiplier: 1.0,
-        cancelPrevious: false,
-        maxWaitMs: 9000,
-        speakerName: 'कबीर (Kabir)',
-      },
-    );
-    if (token !== this.entrySequenceToken || this.gameState !== 'playing') return;
-
-    // Line 3: Watchman Baba tells them about the Shiva Temple key, burning the 4 relics in the well, and Blessed Bhabhut
-    this.onChatLog?.(
-      '[चौकीदार बाबा]: "हवेली के अंदर जाने की चाबी वहां शिव मंदिर के पास मिल जाएगी, जाओ ले लो! और यह लो मेरी अभिमंत्रित भभूत (F दबाएं)!"',
-    );
-    await this.synth.speakSequenceUtterance(
-      'हवेली के अंदर जाने की चाबी वहां शिव मंदिर के पास मिल जाएगी, जाओ ले लो! और अगर अंदर कुछ अनहोनी हो जाए, तो रुक्मिणी की सभी शापित चीज़ें ढूंढकर उस कुएं में जला देना! यह लो मेरी अभिमंत्रित भभूत, अंदर रुक्मिणी पास आए तो F दबाना!',
-      'watchman',
-      {
-        rateMultiplier: 1.0,
-        cancelPrevious: false,
-        maxWaitMs: 16000,
-        speakerName: 'चौकीदार बाबा (Watchman Baba)',
-      },
-    );
   }
 
   /**
@@ -3885,8 +3855,8 @@ export class RaktPishachiniGame extends xb.Script {
 
     const reachDist = 4.6;
 
-    // Check Watchman Baba / Outer Gate before Step 2 cutscene
-    if (this.entryPhase === 'exterior_walk' && this.chowkidar) {
+    // Check Watchman Baba / Outer Gate before Step 2 encounter (never re-prompts once spoken)
+    if (this.entryPhase === 'exterior_walk' && !this.watchmanWarned && this.chowkidar) {
       this.chowkidar.root.getWorldPosition(_relicPos);
       _relicPos.y += 1.2;
       const wDist = _playerWorldPos.distanceTo(_relicPos);

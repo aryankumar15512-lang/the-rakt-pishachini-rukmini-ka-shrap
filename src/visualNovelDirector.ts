@@ -306,7 +306,7 @@ export class VisualNovelIntroDirector {
   private photoCaptionEl?: HTMLElement;
   private soundIndicatorEl?: HTMLElement;
   private lightningFlashEl: HTMLElement;
-  private blackoutFinalEl: HTMLElement;
+  private blackoutFinalEl?: HTMLElement | null;
   private sceneDotsContainer?: HTMLElement;
   private progressBarEl: HTMLElement | null = null;
   private pauseHintEl: HTMLElement | null = null;
@@ -386,7 +386,7 @@ export class VisualNovelIntroDirector {
       photoCaptionEl?: HTMLElement;
       soundIndicatorEl?: HTMLElement;
       lightningFlashEl: HTMLElement;
-      blackoutFinalEl: HTMLElement;
+      blackoutFinalEl?: HTMLElement | null;
       sceneDotsContainer?: HTMLElement;
     },
   ) {
@@ -655,7 +655,7 @@ export class VisualNovelIntroDirector {
     this.isPaused = false;
     this.isStoryPaused = false;
     this.pendingBlockedSpeechRetry = null;
-    this.blackoutFinalEl.classList.add('hidden');
+    this.blackoutFinalEl?.classList.add('hidden');
     this.textStageEl.innerHTML = '';
 
     // Unlock Web Audio API immediately on story start and enable 25% story SFX bus
@@ -1546,7 +1546,9 @@ export class VisualNovelIntroDirector {
     this.stop();
     this.haveliPlaqueEl?.classList.add('hidden');
     this.textStageEl.innerHTML = '';
-    this.blackoutFinalEl.classList.remove('hidden');
+    this.blackoutFinalEl?.classList.add('hidden');
+    // Immediately transition straight into active 3D gameplay with zero extra button clicks
+    this.onStartGameRequested?.();
   }
 
   // ============================================================================
