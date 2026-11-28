@@ -1,7 +1,10 @@
 import {
   CHARACTER_VOICE_PROFILES,
+  getNativeRaktVoiceBridge,
+  getNativeVoiceDurationMs,
   HorrorSynth,
   resolveSpeakerProfileId,
+  stopNativeRaktVoiceBridge,
 } from './horrorAudio.ts';
 import { ART_SCENE_DATA_URLS } from './artKeyframes.ts';
 import { VNShotSpec, UTTERANCE_POOL_13 } from './vnChapterShots.ts';
@@ -497,6 +500,7 @@ export class VisualNovelIntroDirector {
     this.synth.setStorySfxPaused(true);
     this.synth.stopAllVNSounds();
 
+    stopNativeRaktVoiceBridge();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       if (Array.isArray(window.activeUtterances)) {
         window.activeUtterances.length = 0;
@@ -659,7 +663,8 @@ export class VisualNovelIntroDirector {
     this.synth.stopIntroAmbience();
     this.synth.setStorySfxMode(true);
 
-    // Clear any stuck speechSynthesis queue once when starting the intro story
+    // Clear any stuck speechSynthesis or native voice bridge queue once when starting the intro story
+    stopNativeRaktVoiceBridge();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       if (Array.isArray(window.activeUtterances)) {
         window.activeUtterances.length = 0;
@@ -769,6 +774,7 @@ export class VisualNovelIntroDirector {
     cancelAnimationFrame(this.rafId);
     if (this.ttsResumeIntervalId) clearInterval(this.ttsResumeIntervalId);
     this.ttsResumeIntervalId = 0;
+    stopNativeRaktVoiceBridge();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       if (Array.isArray(window.activeUtterances)) {
         window.activeUtterances.length = 0;
@@ -811,6 +817,7 @@ export class VisualNovelIntroDirector {
     if (!scene) return;
     const bIdx = Math.max(0, Math.min(scene.lines.length - 1, beatIdx));
 
+    stopNativeRaktVoiceBridge();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       if (Array.isArray(window.activeUtterances)) {
         window.activeUtterances.length = 0;
@@ -1299,11 +1306,46 @@ export class VisualNovelIntroDirector {
     // Safe backup duration calculated from text length: Math.max(5000, text.length * 95) ms
     const safeBackupMs = Math.max(5000, chunk.length * 95);
 
-    if (
-      typeof window === 'undefined' ||
-      !('speechSynthesis' in window) ||
-      this.synth.muted
-    ) {
+    if (typeof window === 'undefined' || this.synth.muted) {
+      onUtteranceStart?.();
+      await this.waitMs(safeBackupMs, runId);
+      return;
+    }
+
+    // Native Android Capacitor Voice Bridge (window.RaktVoiceBridge) takes priority when available
+    const nativeBridge = getNativeRaktVoiceBridge();
+    if (nativeBridge) {
+      const rateMultiplier = this.slowHorrorPace ? 1.0 : 1.18;
+      const { cleanedText, rate, pitch, isRukmini } =
+        this.synth.getVoiceSpeechParams(
+          chunk,
+          voiceType,
+          rateMultiplier,
+          speakerName,
+        );
+      onUtteranceStart?.();
+      if (cleanedText) {
+        try {
+          if (isRukmini) {
+            this.synth.playRukminiGhostlyTail(0.45);
+          }
+          nativeBridge.speak(cleanedText, rate, pitch);
+        } catch {
+          // Ignore native voice bridge errors
+        }
+      }
+      const naturalDurationMs = getNativeVoiceDurationMs(cleanedText || chunk);
+      await this.waitMs(naturalDurationMs, runId);
+      if (this.isPlaying && !this.isPaused && runId === this.queueRunId) {
+        if (isRukmini) {
+          this.synth.playRukminiGhostlyTail(1.0);
+        }
+        await this.waitMs(250, runId);
+      }
+      return;
+    }
+
+    if (!('speechSynthesis' in window)) {
       onUtteranceStart?.();
       await this.waitMs(safeBackupMs, runId);
       return;

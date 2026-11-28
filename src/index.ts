@@ -23,6 +23,7 @@ import {
   saveControlsMode,
 } from './hudLayoutEditor.ts';
 import { HorrorLobbyScene3D } from './lobbyScene3d.ts';
+import { stopNativeRaktVoiceBridge } from './horrorAudio.ts';
 
 // Guard setPointerCapture & releasePointerCapture against InvalidStateError when Pointer Lock is active
 if (typeof Element !== 'undefined') {
@@ -2103,6 +2104,70 @@ const bootstrapRaktPishachiniApp = () => {
   const backpackBtnEl = document.getElementById('backpack-action-btn');
   const backpackListEl = document.getElementById('hud-backpack-list');
   const autoSprintBtnEl = document.getElementById('autosprint-action-btn');
+  const sprintRingFillEl = document.getElementById('sprint-ring-fill') as SVGCircleElement | null;
+  const sprintTimerLabelEl = document.getElementById('sprint-timer-label');
+  const pcSprintPillEl = document.getElementById('pc-sprint-boost-pill');
+  const pcSprintRingFillEl = document.getElementById('pc-sprint-ring-fill') as SVGCircleElement | null;
+  const pcSprintStateTextEl = document.getElementById('pc-sprint-state-text');
+  const pcSprintTimerTextEl = document.getElementById('pc-sprint-timer-text');
+  const MOBILE_SPRINT_RING_CIRC = 2 * Math.PI * 19.5;
+  const PC_SPRINT_RING_CIRC = 2 * Math.PI * 15.0;
+  let lastSprintUiSignature = '';
+
+  const syncSprintBoostUi = () => {
+    const isCooldown = game.isSprintOnCooldown();
+    const isActive = !isCooldown && game.isPlayerSprinting();
+    const ratio = isCooldown
+      ? 1 - game.sprintCooldownRemainingSec / game.sprintCooldownDurationSec
+      : game.sprintRemainingSec / game.sprintMaxDurationSec;
+    const clampedRatio = Math.max(0, Math.min(1, ratio));
+    const displaySecs = isCooldown
+      ? Math.max(1, Math.ceil(game.sprintCooldownRemainingSec))
+      : Math.max(0, Math.ceil(game.sprintRemainingSec));
+    const sig = `${isCooldown ? 'cd' : isActive ? 'on' : 'off'}:${displaySecs}:${Math.round(clampedRatio * 100)}:${game.gameState}`;
+    if (sig === lastSprintUiSignature) return;
+    lastSprintUiSignature = sig;
+
+    if (autoSprintBtnEl) {
+      autoSprintBtnEl.classList.toggle('active', isActive);
+      autoSprintBtnEl.classList.toggle('recharging', isCooldown);
+      autoSprintBtnEl.setAttribute('aria-pressed', String(isActive));
+    }
+    if (sprintRingFillEl) {
+      sprintRingFillEl.style.strokeDashoffset = (
+        MOBILE_SPRINT_RING_CIRC * (1 - clampedRatio)
+      ).toFixed(2);
+    }
+    if (sprintTimerLabelEl) {
+      sprintTimerLabelEl.textContent = `${displaySecs}s`;
+    }
+
+    if (pcSprintPillEl) {
+      const showPcPill =
+        game.gameState === 'playing' &&
+        (isActive ||
+          isCooldown ||
+          game.sprintRemainingSec < game.sprintMaxDurationSec - 0.15);
+      pcSprintPillEl.classList.toggle('hidden', !showPcPill);
+      pcSprintPillEl.classList.toggle('active', isActive);
+      pcSprintPillEl.classList.toggle('recharging', isCooldown);
+      if (pcSprintRingFillEl) {
+        pcSprintRingFillEl.style.strokeDashoffset = (
+          PC_SPRINT_RING_CIRC * (1 - clampedRatio)
+        ).toFixed(2);
+      }
+      if (pcSprintStateTextEl) {
+        pcSprintStateTextEl.textContent = isCooldown
+          ? 'RECHARGE'
+          : isActive
+            ? 'SPRINTING'
+            : 'SPRINT';
+      }
+      if (pcSprintTimerTextEl) {
+        pcSprintTimerTextEl.textContent = `${displaySecs}s`;
+      }
+    }
+  };
   let lastBackpackSignature = '__uninitialized__';
 
   function refreshHudState() {
@@ -2196,10 +2261,7 @@ const bootstrapRaktPishachiniApp = () => {
         }
       }
     }
-    if (autoSprintBtnEl) {
-      autoSprintBtnEl.classList.toggle('active', game.autoSprintActive);
-      autoSprintBtnEl.setAttribute('aria-pressed', String(game.autoSprintActive));
-    }
+    syncSprintBoostUi();
     if (hudHeartIcons.length > 0) {
       hudHeartIcons.forEach((heart, idx) => {
         heart.classList.toggle('lost', idx >= game.lives);
@@ -2559,6 +2621,7 @@ const bootstrapRaktPishachiniApp = () => {
     if (showFpsCounter && hudFpsCounter) {
       hudFpsCounter.textContent = `${game.measuredFps} FPS`;
     }
+    syncSprintBoostUi();
     if (!game.isMinimapExpanded) return;
     if (!miniMap3D) {
       ensureMiniMap3D(game.getHaveliWorld());
@@ -3670,12 +3733,41 @@ const bootstrapRaktPishachiniApp = () => {
     }
   });
 
-  // Subtle, crisp one-shot UI button tap sound (never continuous oscillators)
-  document.addEventListener('click', (e) => {
-    const btn = closestElement(e.target, 'button, [role="tab"]');
-    if (!btn || btn.hasAttribute('disabled')) return;
+  // Crisp 35ms one-shot UI click sound ONLY for Launch Screen, Lobby, Sidebar, Mode Selector,
+  // Exit Popup, and Settings Menu buttons (strictly excluded from in-game gameplay controls!)
+  let lastUiClickSoundMs = 0;
+  const isExcludedGameplayControl = (el: Element): boolean => {
+    if (
+      el.closest(
+        '#game-canvas-host, #game-webgl-canvas, .joystick-base, .joystick-knob, .controls-overlay, .hud-autosprint-slot, .hud-backpack-slot, .hud-backpack-drawer, .hud-circle-slot, .hud-circle-btn, .hud-radar-btn, .hud-map-icon-btn, #hud-minimap-container, #autosprint-action-btn, #btn-jump, #btn-crouch, #btn-interact, #btn-flashlight, #btn-throw',
+      )
+    ) {
+      return true;
+    }
+    // Exclude all in-game #hud buttons except the Settings/Exit button
+    if (el.closest('#hud') && !el.closest('#hud-exit-btn')) {
+      return true;
+    }
+    return false;
+  };
+  const handleMenuUiClickSound = (e: Event) => {
+    const targetEl = e.target instanceof Element ? e.target : null;
+    if (!targetEl) return;
+    if (isExcludedGameplayControl(targetEl)) return;
+    const interactive = closestElement(
+      targetEl,
+      'button, [role="tab"], [role="button"], .lobby-mode-card, .ig-hud-card, .ig-seg-btn, .pro-tab-btn',
+    );
+    if (!interactive || interactive.hasAttribute('disabled')) return;
+    if (isExcludedGameplayControl(interactive)) return;
+    const now = performance.now();
+    if (now - lastUiClickSoundMs < 75) return;
+    lastUiClickSoundMs = now;
     game.synth.playUiTapSound();
-  });
+  };
+  // Capture phase ensures buttons that call e.stopPropagation() still emit the crisp UI click
+  document.addEventListener('pointerdown', handleMenuUiClickSound, true);
+  document.addEventListener('click', handleMenuUiClickSound, true);
 
   // Collapsible Friends & TEAMCODE Drawer
   const setFriendsDrawerOpen = (open: boolean) => {
@@ -4177,13 +4269,7 @@ const bootstrapRaktPishachiniApp = () => {
     game.resumeSpatialAudio();
     if (game.gameState === 'playing') {
       game.toggleAutoSprint();
-      if (autoSprintActionBtn) {
-        autoSprintActionBtn.classList.toggle('active', game.autoSprintActive);
-        autoSprintActionBtn.setAttribute(
-          'aria-pressed',
-          String(game.autoSprintActive),
-        );
-      }
+      syncSprintBoostUi();
     }
   };
   autoSprintActionBtn?.addEventListener('click', triggerAutoSprintToggle);
@@ -4568,6 +4654,7 @@ const bootstrapRaktPishachiniApp = () => {
     e.stopPropagation();
     void requestMobileFullscreenLandscape();
     unlockAndStartMenuAmbience();
+    stopNativeRaktVoiceBridge();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
@@ -4757,11 +4844,9 @@ const bootstrapRaktPishachiniApp = () => {
       game.setAutoSprint(false);
     }
 
-    // Push joystick all the way forward -> smooth auto-sprint (without affecting PC Shift sprint)
-    const isForwardSprint =
-      normY <= -0.82 && Math.hypot(normX, normY) >= 0.88;
-    game.moveInput.joySprint = isForwardSprint;
-    joystick.classList.toggle('is-sprinting', isForwardSprint);
+    // Keep virtual joystick at normal walking speed so only tapping the 30s SPRINT button triggers Sprint Boost
+    game.moveInput.joySprint = false;
+    joystick.classList.toggle('is-sprinting', game.isPlayerSprinting());
   };
 
   const resetVirtualJoystick = () => {

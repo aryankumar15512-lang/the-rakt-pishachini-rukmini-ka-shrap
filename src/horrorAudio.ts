@@ -14,6 +14,37 @@ export function getGlobalAudioContext(): AudioContext | null {
   return globalAudioCtx;
 }
 
+export interface NativeRaktVoiceBridge {
+  speak: (text: string, rate: number, pitch: number) => void;
+  stop: () => void;
+}
+
+export function getNativeRaktVoiceBridge(): NativeRaktVoiceBridge | null {
+  if (typeof window === 'undefined') return null;
+  const bridge = (
+    window as unknown as { RaktVoiceBridge?: NativeRaktVoiceBridge }
+  ).RaktVoiceBridge;
+  if (bridge && typeof bridge.speak === 'function') {
+    return bridge;
+  }
+  return null;
+}
+
+export function stopNativeRaktVoiceBridge(): void {
+  const bridge = getNativeRaktVoiceBridge();
+  if (bridge && typeof bridge.stop === 'function') {
+    try {
+      bridge.stop();
+    } catch {
+      // Ignore native voice bridge stop errors
+    }
+  }
+}
+
+export function getNativeVoiceDurationMs(text: string): number {
+  return Math.max(2000, text.length * 78);
+}
+
 /**
  * Transliterates Devanagari text into phonetic Roman Hindi so that if a browser
  * does not have a 'hi-IN' voice loaded and falls back to its default English/Latin voice,
@@ -416,39 +447,89 @@ export class HorrorSynth {
     return this.muted ? 0 : this.masterVolume * this.dialogueVolume;
   }
 
+  private uiClickNoiseBuffer: AudioBuffer | null = null;
+  private activeBridgeCancelCallbacks = new Set<() => void>();
+
+  private ensureUiAudioContext(): AudioContext | null {
+    if (typeof window === 'undefined') return null;
+    if (!globalAudioCtx) {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+      if (!AudioCtx) return null;
+      globalAudioCtx = new AudioCtx();
+    }
+    if (globalAudioCtx.state === 'suspended') {
+      void globalAudioCtx.resume().catch(() => {});
+    }
+    return globalAudioCtx;
+  }
+
   /**
-   * Subtle, crisp 24ms one-shot UI tap click (pre-rendered PCM WAV, zero continuous oscillators).
+   * Clean, subtle 35ms one-shot filtered percussive UI click via Web Audio API
+   * (zero continuous oscillators or drones; strictly respects Settings SFX & Mute All).
    */
   public playUiTapSound() {
-    const gain = this.effectiveSfxVolume;
-    if (gain <= 0.005 || typeof window === 'undefined') return;
+    const gainLevel = this.effectiveSfxVolume;
+    if (gainLevel <= 0.005 || typeof window === 'undefined') return;
     try {
-      if (!this.uiTapWavUrl) {
-        const sr = 22050;
-        const len = Math.floor(sr * 0.024);
-        const pcm = new Float32Array(len);
-        for (let i = 0; i < len; i++) {
+      const ctx = this.ensureUiAudioContext();
+      if (!ctx) return;
+
+      const durationSec = 0.035;
+      if (
+        !this.uiClickNoiseBuffer ||
+        this.uiClickNoiseBuffer.sampleRate !== ctx.sampleRate
+      ) {
+        const sr = ctx.sampleRate;
+        const length = Math.max(1, Math.floor(sr * durationSec));
+        const buffer = ctx.createBuffer(1, length, sr);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < length; i++) {
           const t = i / sr;
-          const env = Math.exp(-t * 175);
-          const click =
-            Math.sin(2 * Math.PI * 1240 * t) * 0.55 +
-            Math.sin(2 * Math.PI * 2480 * t) * 0.25 +
-            Math.sin(2 * Math.PI * 620 * t) * 0.2;
-          pcm[i] = click * env * 0.42;
+          const env = Math.exp(-t * 135);
+          // Crisp micro-percussive transient (wood/slate tap + short filtered click burst)
+          const transient =
+            Math.sin(2 * Math.PI * 1380 * t) * 0.52 +
+            Math.sin(2 * Math.PI * 2760 * t) * 0.24 +
+            (Math.random() * 2 - 1) * 0.32 * Math.exp(-t * 280);
+          data[i] = transient * env;
         }
-        this.uiTapWavUrl = this.buildPcmWavBlobUrl(pcm, sr);
+        this.uiClickNoiseBuffer = buffer;
       }
-      if (!this.uiTapWavUrl) return;
-      const vol = Math.max(0.02, Math.min(0.28, gain * 0.24));
-      this.uiTapCursor = this.playPooledOneShot(
-        this.uiTapPool,
-        3,
-        this.uiTapCursor,
-        this.uiTapWavUrl,
-        vol,
-      );
+
+      const now = ctx.currentTime;
+      const src = ctx.createBufferSource();
+      src.buffer = this.uiClickNoiseBuffer;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1480, now);
+      filter.Q.setValueAtTime(1.35, now);
+
+      const amp = ctx.createGain();
+      const peakGain = Math.max(0.015, Math.min(0.26, gainLevel * 0.22));
+      amp.gain.setValueAtTime(peakGain, now);
+      amp.gain.exponentialRampToValueAtTime(0.0001, now + durationSec);
+
+      src.connect(filter);
+      filter.connect(amp);
+      amp.connect(ctx.destination);
+
+      src.onended = () => {
+        try {
+          src.disconnect();
+          filter.disconnect();
+          amp.disconnect();
+        } catch {
+          // Ignore disconnect errors
+        }
+      };
+      src.start(now);
+      src.stop(now + durationSec + 0.004);
     } catch {
-      // Ignore autoplay or audio errors
+      // Ignore Web Audio autoplay or device errors
     }
   }
 
@@ -476,6 +557,11 @@ export class HorrorSynth {
   private payalStepWavUrls: Array<string | null> | null = null;
   private payalAudioPool: HTMLAudioElement[] = [];
   private payalPoolCursor = 0;
+  private payalStepWebBuffers: AudioBuffer[] | null = null;
+  private witchFootstepWebBuffers: AudioBuffer[] | null = null;
+  private witchWhisperWebBuffers: AudioBuffer[] | null = null;
+  private witchShriekWebBuffer: AudioBuffer | null = null;
+  private witchBufferSampleRate = 0;
 
   private heartbeatCalmWavUrl: string | null = null;
   private heartbeatUrgentWavUrl: string | null = null;
@@ -684,47 +770,374 @@ export class HorrorSynth {
     return (cursor + 1) % poolSize;
   }
 
+  private ensureWitchDirectionalBuffers(ctx: AudioContext) {
+    if (
+      this.witchBufferSampleRate === ctx.sampleRate &&
+      this.payalStepWebBuffers &&
+      this.witchFootstepWebBuffers &&
+      this.witchWhisperWebBuffers &&
+      this.witchShriekWebBuffer
+    ) {
+      return;
+    }
+
+    const sr = ctx.sampleRate;
+    this.witchBufferSampleRate = sr;
+
+    // 1. Louder, metallic multi-bell silver Payal (anklet jingle) variants (0.34s each)
+    const payalDur = 0.34;
+    const payalLen = Math.max(1, Math.floor(sr * payalDur));
+    const payalVariants: Array<
+      Array<{ onset: number; f0: number; decay: number; amp: number }>
+    > = [
+      [
+        { onset: 0.0, f0: 3240, decay: 22, amp: 0.44 },
+        { onset: 0.009, f0: 3740, decay: 25, amp: 0.38 },
+        { onset: 0.021, f0: 4320, decay: 29, amp: 0.33 },
+        { onset: 0.036, f0: 4910, decay: 32, amp: 0.27 },
+        { onset: 0.056, f0: 3580, decay: 24, amp: 0.25 },
+        { onset: 0.082, f0: 4120, decay: 28, amp: 0.20 },
+      ],
+      [
+        { onset: 0.0, f0: 3410, decay: 23, amp: 0.43 },
+        { onset: 0.011, f0: 3960, decay: 26, amp: 0.37 },
+        { onset: 0.025, f0: 4540, decay: 30, amp: 0.32 },
+        { onset: 0.042, f0: 5180, decay: 34, amp: 0.25 },
+        { onset: 0.064, f0: 3710, decay: 25, amp: 0.24 },
+        { onset: 0.091, f0: 4290, decay: 29, amp: 0.19 },
+      ],
+      [
+        { onset: 0.0, f0: 3120, decay: 21, amp: 0.43 },
+        { onset: 0.008, f0: 3630, decay: 24, amp: 0.39 },
+        { onset: 0.019, f0: 4190, decay: 28, amp: 0.33 },
+        { onset: 0.034, f0: 4760, decay: 31, amp: 0.27 },
+        { onset: 0.053, f0: 3990, decay: 26, amp: 0.24 },
+        { onset: 0.078, f0: 3490, decay: 27, amp: 0.19 },
+      ],
+    ];
+
+    this.payalStepWebBuffers = payalVariants.map((bells) => {
+      const buf = ctx.createBuffer(1, payalLen, sr);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < payalLen; i++) {
+        const t = i / sr;
+        let s = 0;
+        for (let b = 0; b < bells.length; b++) {
+          const bell = bells[b];
+          const bt = t - bell.onset;
+          if (bt < 0) continue;
+          const attack = 1 - Math.exp(-bt * 1100);
+          const env1 = attack * Math.exp(-bt * bell.decay);
+          const env2 = attack * Math.exp(-bt * (bell.decay * 1.55));
+          const env3 = attack * Math.exp(-bt * (bell.decay * 2.2));
+          const f1 = bell.f0;
+          const f1b = bell.f0 + 27;
+          const f2 = bell.f0 * 2.13;
+          const f3 = bell.f0 * 2.87;
+          let tone =
+            (Math.sin(2 * Math.PI * f1 * bt) * 0.58 +
+              Math.sin(2 * Math.PI * f1b * bt) * 0.36) *
+            env1;
+          if (f2 < sr * 0.46) {
+            tone += Math.sin(2 * Math.PI * f2 * bt) * 0.34 * env2;
+          }
+          if (f3 < sr * 0.47) {
+            tone += Math.sin(2 * Math.PI * f3 * bt) * 0.18 * env3;
+          }
+          s += tone * bell.amp;
+        }
+        const tailStart = payalDur - 0.03;
+        const endFade =
+          t > tailStart
+            ? 0.5 * (1 + Math.cos(((t - tailStart) / 0.03) * Math.PI))
+            : 1.0;
+        data[i] = Math.max(-0.96, Math.min(0.96, s * 0.92 * endFade));
+      }
+      return buf;
+    });
+
+    // 2. Heavy ominous barefoot stone-floor thuds (0.22s each, 2 subtle pitch variants)
+    const footDur = 0.22;
+    const footLen = Math.max(1, Math.floor(sr * footDur));
+    this.witchFootstepWebBuffers = [0, 1].map((variant) => {
+      const buf = ctx.createBuffer(1, footLen, sr);
+      const data = buf.getChannelData(0);
+      const baseFreq = variant === 0 ? 68 : 61;
+      let prevNoise = 0;
+      for (let i = 0; i < footLen; i++) {
+        const t = i / sr;
+        const attack = Math.sin(Math.min(1, t / 0.009) * (Math.PI / 2));
+        const bodyEnv = attack * Math.exp(-t * 21);
+        const phase =
+          2 *
+          Math.PI *
+          (baseFreq * t + (42 / 30) * (1 - Math.exp(-t * 30)));
+        const subPhase =
+          2 *
+          Math.PI *
+          ((baseFreq * 0.65) * t + (22 / 24) * (1 - Math.exp(-t * 24)));
+        const rawNoise = Math.random() * 2 - 1;
+        prevNoise = prevNoise * 0.82 + rawNoise * 0.18;
+        const gritEnv = Math.exp(-t * 48);
+        const s =
+          (Math.sin(phase) * 0.72 + Math.sin(subPhase) * 0.44) * bodyEnv +
+          prevNoise * 0.48 * gritEnv;
+        const tailStart = footDur - 0.025;
+        const endFade =
+          t > tailStart
+            ? 0.5 * (1 + Math.cos(((t - tailStart) / 0.025) * Math.PI))
+            : 1.0;
+        data[i] = Math.max(-0.96, Math.min(0.96, s * 0.95 * endFade));
+      }
+      return buf;
+    });
+
+    // 3. Eerie breathy spectral whispers (2 finite 1.35s one-shot buffers, zero continuous oscillators)
+    const whisperDur = 1.35;
+    const whisperLen = Math.max(1, Math.floor(sr * whisperDur));
+    this.witchWhisperWebBuffers = [0, 1].map((variant) => {
+      const buf = ctx.createBuffer(1, whisperLen, sr);
+      const data = buf.getChannelData(0);
+      let lp1 = 0;
+      let lp2 = 0;
+      let hp = 0;
+      let lastIn = 0;
+      for (let i = 0; i < whisperLen; i++) {
+        const t = i / sr;
+        // Two eerie breathy whisper syllables ("shhh... aaaah..." / "kahaan... hooo...")
+        const syl1 =
+          Math.exp(-Math.pow((t - 0.28) / 0.18, 2)) *
+          (0.65 + 0.35 * Math.sin(2 * Math.PI * 6.5 * t));
+        const syl2 =
+          Math.exp(-Math.pow((t - 0.84) / 0.24, 2)) *
+          (0.68 + 0.32 * Math.sin(2 * Math.PI * 5.1 * t + variant));
+        const env = Math.min(1, syl1 * 0.92 + syl2 * 1.05);
+
+        const white = Math.random() * 2 - 1;
+        hp = 0.86 * (hp + white - lastIn);
+        lastIn = white;
+        lp1 = lp1 * 0.55 + hp * 0.45;
+        lp2 = lp2 * 0.72 + lp1 * 0.28;
+
+        // Faint ghostly vocal formant undertone
+        const fFormant = variant === 0 ? 410 - t * 55 : 465 - t * 68;
+        const ghostlyTone =
+          Math.sin(2 * Math.PI * fFormant * t) * 0.14 +
+          Math.sin(2 * Math.PI * (fFormant * 2.38) * t) * 0.08;
+
+        const tailStart = whisperDur - 0.12;
+        const endFade =
+          t > tailStart
+            ? 0.5 * (1 + Math.cos(((t - tailStart) / 0.12) * Math.PI))
+            : 1.0;
+        const s = (lp1 * 0.78 + lp2 * 0.45 + ghostlyTone) * env * endFade;
+        data[i] = Math.max(-0.92, Math.min(0.92, s * 1.15));
+      }
+      return buf;
+    });
+
+    // 4. Sudden terrifying Blood-Witch chase shriek (0.92s finite dramatic screech buffer)
+    const shriekDur = 0.92;
+    const shriekLen = Math.max(1, Math.floor(sr * shriekDur));
+    const shriekBuf = ctx.createBuffer(1, shriekLen, sr);
+    const sData = shriekBuf.getChannelData(0);
+    let phaseA = 0;
+    let phaseB = 0;
+    let phaseC = 0;
+    let sHp = 0;
+    let sLast = 0;
+    for (let i = 0; i < shriekLen; i++) {
+      const t = i / sr;
+      const attack = 1 - Math.exp(-t * 36);
+      const decay = Math.exp(-t * 2.45);
+      const vibrato = Math.sin(2 * Math.PI * 24 * t) * 48;
+      // Sharp upward terror spike then falling demonic rasp
+      const pitchCurve =
+        t < 0.18
+          ? 640 + (t / 0.18) * 1080
+          : 1720 * Math.exp(-(t - 0.18) * 1.25) + 460;
+      const fA = pitchCurve + vibrato;
+      const fB = fA * 1.52 + 37;
+      const fC = fA * 2.19 - 29;
+      phaseA += (2 * Math.PI * fA) / sr;
+      phaseB += (2 * Math.PI * fB) / sr;
+      phaseC += (2 * Math.PI * fC) / sr;
+
+      const white = Math.random() * 2 - 1;
+      sHp = 0.82 * (sHp + white - sLast);
+      sLast = white;
+
+      // Soft-clipped distorted vocal scream harmonics + raspy air hiss
+      const rawVoice =
+        Math.sin(phaseA) * 0.56 +
+        Math.sin(phaseB) * 0.34 +
+        Math.sin(phaseC) * 0.22 +
+        sHp * 0.42;
+      const driven = Math.tanh(rawVoice * 1.85);
+      const tailStart = shriekDur - 0.09;
+      const endFade =
+        t > tailStart
+          ? 0.5 * (1 + Math.cos(((t - tailStart) / 0.09) * Math.PI))
+          : 1.0;
+      sData[i] = Math.max(-0.95, Math.min(0.95, driven * attack * decay * endFade));
+    }
+    this.witchShriekWebBuffer = shriekBuf;
+  }
+
+  private playDirectionalWebBuffer(
+    buffer: AudioBuffer,
+    gainValue: number,
+    pan = 0,
+    playbackRate = 1.0,
+    filterConfig?: { type: BiquadFilterType; freq: number; q?: number },
+  ): boolean {
+    if (gainValue <= 0.004 || typeof window === 'undefined') return false;
+    try {
+      const ctx = this.ensureUiAudioContext();
+      if (!ctx || ctx.state === 'closed') return false;
+      const now = ctx.currentTime;
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.playbackRate.setValueAtTime(
+        Math.max(0.65, Math.min(1.45, playbackRate)),
+        now,
+      );
+
+      let lastNode: AudioNode = src;
+      let filterNode: BiquadFilterNode | null = null;
+      if (filterConfig) {
+        filterNode = ctx.createBiquadFilter();
+        filterNode.type = filterConfig.type;
+        filterNode.frequency.setValueAtTime(filterConfig.freq, now);
+        if (filterConfig.q !== undefined) {
+          filterNode.Q.setValueAtTime(filterConfig.q, now);
+        }
+        lastNode.connect(filterNode);
+        lastNode = filterNode;
+      }
+
+      let panner: StereoPannerNode | null = null;
+      if (typeof ctx.createStereoPanner === 'function') {
+        panner = ctx.createStereoPanner();
+        panner.pan.setValueAtTime(Math.max(-0.95, Math.min(0.95, pan)), now);
+        lastNode.connect(panner);
+        lastNode = panner;
+      }
+
+      const amp = ctx.createGain();
+      const clampedGain = Math.max(0.008, Math.min(1.15, gainValue));
+      amp.gain.setValueAtTime(clampedGain, now);
+      lastNode.connect(amp);
+      amp.connect(ctx.destination);
+
+      src.onended = () => {
+        try {
+          src.disconnect();
+          filterNode?.disconnect();
+          panner?.disconnect();
+          amp.disconnect();
+        } catch {
+          // Ignore disconnect errors
+        }
+      };
+      src.start(now);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /**
-   * Plays one soft, realistic silver anklet (Payal) jingle footstep burst scaled smoothly
-   * by Rukmini's distance (audible up to 24m inside the Haveli) and walking speed.
+   * Plays Rukmini's directional metallic silver Payal (anklet jingles) layered with a heavy
+   * ominous footstep thud, scaled cleanly by distance (audible up to 34m), chase speed, and stereo pan.
    */
   public playPayalStep(
     distance: number,
     _positionalPayal?: THREE.PositionalAudio,
-    witchSpeed = 1.6,
+    witchSpeed = 2.1,
     stepIndex = 0,
     floorDiff = 0,
+    pan = 0,
   ) {
     if (
       !this.gameplayAudioEnabled ||
       this.muted ||
       this.masterVolume <= 0 ||
-      distance > 24.0 ||
-      typeof Audio === 'undefined'
+      distance > 34.0
     ) {
       return;
     }
 
+    const sfxGain = this.effectiveSfxVolume;
+    if (sfxGain <= 0.005) return;
+
+    // Vivid directional falloff from 34m (haunting corridor jingle) down to 1.5m (intense close-up)
+    const normDist = Math.max(0, Math.min(1, (34.0 - distance) / 32.5));
+    const distGain = Math.pow(normDist, 1.42);
+    const isChasing = witchSpeed > 3.2;
+    const speedGain = isChasing
+      ? 1.24
+      : 0.92 + Math.max(0, Math.min(1, (witchSpeed - 1.4) / 2.2)) * 0.22;
+    const floorDamp = floorDiff > 2.2 ? 0.62 : 1.0;
+
+    const payalGain = Math.max(
+      0.035 * sfxGain,
+      Math.min(1.05 * sfxGain, distGain * speedGain * floorDamp * sfxGain * 1.02),
+    );
+    const footGain = Math.max(
+      0.025 * sfxGain,
+      Math.min(
+        0.95 * sfxGain,
+        Math.pow(normDist, 1.35) * (isChasing ? 1.28 : 0.88) * floorDamp * sfxGain * 0.88,
+      ),
+    );
+
+    const ctx = this.ensureUiAudioContext();
+    if (ctx) {
+      this.ensureWitchDirectionalBuffers(ctx);
+      if (this.payalStepWebBuffers && this.payalStepWebBuffers.length > 0) {
+        const payalBuf =
+          this.payalStepWebBuffers[
+            Math.abs(stepIndex) % this.payalStepWebBuffers.length
+          ];
+        const pitchJitter = 0.96 + ((Math.abs(stepIndex) * 7) % 9) * 0.01;
+        this.playDirectionalWebBuffer(
+          payalBuf,
+          payalGain,
+          pan,
+          isChasing ? pitchJitter * 1.04 : pitchJitter,
+          floorDiff > 2.2
+            ? { type: 'lowpass', freq: 3800 }
+            : undefined,
+        );
+      }
+      if (
+        this.witchFootstepWebBuffers &&
+        this.witchFootstepWebBuffers.length > 0 &&
+        distance <= 28.0
+      ) {
+        const footBuf =
+          this.witchFootstepWebBuffers[
+            Math.abs(stepIndex) % this.witchFootstepWebBuffers.length
+          ];
+        this.playDirectionalWebBuffer(
+          footBuf,
+          footGain,
+          pan,
+          isChasing ? 1.06 : 0.94,
+          { type: 'lowpass', freq: floorDiff > 2.2 ? 220 : 420 },
+        );
+      }
+      return;
+    }
+
+    // Fallback to pooled WAV if Web Audio Context is unavailable
+    if (typeof Audio === 'undefined') return;
     const wavs = this.ensurePayalStepWavs();
     const variantIdx = Math.abs(stepIndex) % wavs.length;
     const wavUrl = wavs[variantIdx];
     if (!wavUrl) return;
-
-    // Smooth inverse-distance falloff from 24m (distant corridor whisper) down to 1.5m (vivid close chime)
-    const normDist = Math.max(0, Math.min(1, (24.0 - distance) / 22.5));
-    const distGain = Math.pow(normDist, 1.85);
-    const speedGain = 0.84 + Math.max(0, Math.min(1, (witchSpeed - 1.2) / 2.4)) * 0.24;
-    const floorDamp = floorDiff > 2.2 ? 0.54 : 1.0;
-
-    const sfxGain = this.effectiveSfxVolume;
-    if (sfxGain <= 0.005) return;
-
-    const finalVol = Math.max(
-      0.018 * sfxGain,
-      Math.min(0.6 * sfxGain, distGain * speedGain * floorDamp * sfxGain * 0.6),
-    );
-    if (finalVol < 0.01) return;
-
+    const finalVol = Math.max(0.03, Math.min(0.95, payalGain));
     this.payalPoolCursor = this.playPooledOneShot(
       this.payalAudioPool,
       4,
@@ -732,6 +1145,44 @@ export class HorrorSynth {
       wavUrl,
       finalVol,
     );
+  }
+
+  /**
+   * Plays a directional eerie spectral whisper burst as Rukmini prowls nearby (audible up to 28m).
+   */
+  public playWitchEerieWhisper(distance: number, pan = 0, variant = 0) {
+    if (
+      !this.gameplayAudioEnabled ||
+      this.muted ||
+      this.masterVolume <= 0 ||
+      distance > 28.0
+    ) {
+      return;
+    }
+    const sfxGain = this.effectiveSfxVolume;
+    if (sfxGain <= 0.005) return;
+
+    const ctx = this.ensureUiAudioContext();
+    if (!ctx) return;
+    this.ensureWitchDirectionalBuffers(ctx);
+    if (!this.witchWhisperWebBuffers || this.witchWhisperWebBuffers.length === 0) {
+      return;
+    }
+
+    const normDist = Math.max(0, Math.min(1, (28.0 - distance) / 26.0));
+    const gain = Math.max(
+      0.04 * sfxGain,
+      Math.min(0.84 * sfxGain, Math.pow(normDist, 1.35) * sfxGain * 0.84),
+    );
+    const buf =
+      this.witchWhisperWebBuffers[
+        Math.abs(variant) % this.witchWhisperWebBuffers.length
+      ];
+    this.playDirectionalWebBuffer(buf, gain, pan, 0.92 + (variant % 3) * 0.06, {
+      type: 'bandpass',
+      freq: 1620,
+      q: 1.15,
+    });
   }
 
   /**
@@ -798,7 +1249,40 @@ export class HorrorSynth {
 
   public playRelicChime(_isBurn = false) {}
 
-  public playWitchShriek() {}
+  /**
+   * Plays a sudden, directional blood-curdling chase shriek when Rukmini hears the player
+   * and locks onto their footsteps/sprinting (finite one-shot buffer, zero continuous drones).
+   */
+  public playWitchShriek(distance = 10.0, pan = 0) {
+    if (
+      !this.gameplayAudioEnabled ||
+      this.muted ||
+      this.masterVolume <= 0 ||
+      distance > 36.0
+    ) {
+      return;
+    }
+    const sfxGain = this.effectiveSfxVolume;
+    if (sfxGain <= 0.005) return;
+
+    const ctx = this.ensureUiAudioContext();
+    if (!ctx) return;
+    this.ensureWitchDirectionalBuffers(ctx);
+    if (!this.witchShriekWebBuffer) return;
+
+    const normDist = Math.max(0, Math.min(1, (36.0 - distance) / 34.0));
+    const gain = Math.max(
+      0.09 * sfxGain,
+      Math.min(0.92 * sfxGain, (0.24 + Math.pow(normDist, 1.25) * 0.68) * sfxGain),
+    );
+    this.playDirectionalWebBuffer(
+      this.witchShriekWebBuffer,
+      gain,
+      pan,
+      0.96 + Math.random() * 0.09,
+      { type: 'bandpass', freq: 1450, q: 0.72 },
+    );
+  }
 
   public startIntroAmbience() {}
 
@@ -934,6 +1418,47 @@ export class HorrorSynth {
   }
 
   /**
+   * Computes cleaned Hindi speech text and per-character rate/pitch parameters
+   * shared identically between native Android `window.RaktVoiceBridge` and desktop `speechSynthesis`.
+   */
+  public getVoiceSpeechParams(
+    rawText: string,
+    voiceType: VNSpeakerVoice | string,
+    rateMultiplier = 1.0,
+    speakerName?: string,
+  ): {
+    cleanedText: string;
+    rate: number;
+    pitch: number;
+    isRukmini: boolean;
+    profileId: CanonicalCharacterVoiceId;
+  } {
+    const profileId = resolveSpeakerProfileId(voiceType, speakerName, rawText);
+    const profile = CHARACTER_VOICE_PROFILES[profileId];
+
+    const cleaned = rawText
+      .replace(/^\[?[^:\[\]]{1,48}\]?:\s*/u, '')
+      .replace(/\([^)]*\)/g, '')
+      .replace(/["""]/g, '')
+      .trim();
+
+    const cleanedText = cleaned || rawText.trim();
+    const pitch = Math.max(0.4, Math.min(1.5, profile.pitch));
+    const rate = Math.max(
+      0.6,
+      Math.min(1.35, profile.rate * (rateMultiplier || 1.0)),
+    );
+
+    return {
+      cleanedText,
+      rate,
+      pitch,
+      isRukmini: Boolean(profile.ghostlyTail),
+      profileId,
+    };
+  }
+
+  /**
    * Configures a SpeechSynthesisUtterance strictly with a native Indian Hindi (hi-IN) voice
    * (never selecting any English/foreign voice such as en-US, en-GB, en-IN, David, Zira, Mark, or Rishi),
    * applying each character's unique natural pitch and speed profile automatically by speaker name.
@@ -944,14 +1469,13 @@ export class HorrorSynth {
     rateMultiplier = 1.0,
     speakerName?: string,
   ): SpeechSynthesisUtterance {
-    const profileId = resolveSpeakerProfileId(voiceType, speakerName, rawText);
+    const { cleanedText, rate, pitch, profileId } = this.getVoiceSpeechParams(
+      rawText,
+      voiceType,
+      rateMultiplier,
+      speakerName,
+    );
     const profile = CHARACTER_VOICE_PROFILES[profileId];
-
-    const cleaned = rawText
-      .replace(/^\[?[^:\[\]]{1,48}\]?:\s*/u, '')
-      .replace(/\([^)]*\)/g, '')
-      .replace(/["""]/g, '')
-      .trim();
 
     // Refresh native hi-IN voices if cache is empty (handles async browser voice loading)
     if (this.cachedHindiVoices.length === 0) {
@@ -988,7 +1512,7 @@ export class HorrorSynth {
     const selectedHindiVoice = pickPureHindiVoice();
 
     // Always speak pure Hindi text with lang = 'hi-IN' (zero English/foreign voice fallback)
-    const utter = new SpeechSynthesisUtterance(cleaned || rawText.trim());
+    const utter = new SpeechSynthesisUtterance(cleanedText);
     utter.volume = Math.max(0.2, Math.min(1.0, this.masterVolume || 1.0));
     utter.lang = 'hi-IN';
 
@@ -996,29 +1520,47 @@ export class HorrorSynth {
       utter.voice = selectedHindiVoice;
     }
 
-    utter.pitch = Math.max(0.4, Math.min(1.5, profile.pitch));
-    utter.rate = Math.max(
-      0.6,
-      Math.min(1.35, profile.rate * (rateMultiplier || 1.0)),
-    );
+    utter.pitch = pitch;
+    utter.rate = rate;
 
     return utter;
   }
 
   /**
-   * Speaks a Hindi dialogue/narration line using browser SpeechSynthesis ('hi-IN')
-   * with immediate fallback to the default browser voice if 'hi-IN' is not loaded.
+   * Speaks a Hindi dialogue/narration line via native Android `window.RaktVoiceBridge` when available,
+   * otherwise using desktop browser `window.speechSynthesis` strictly filtered to `hi-IN` voices.
    */
   public speakHindiVNLine(
     text: string,
     voiceType: VNSpeakerVoice,
     speakerName?: string,
   ) {
-    if (
-      this.muted ||
-      typeof window === 'undefined' ||
-      !('speechSynthesis' in window)
-    ) {
+    if (this.muted || typeof window === 'undefined') {
+      return;
+    }
+
+    const { cleanedText, rate, pitch, isRukmini } = this.getVoiceSpeechParams(
+      text,
+      voiceType,
+      1.0,
+      speakerName,
+    );
+    if (!cleanedText) return;
+
+    const nativeBridge = getNativeRaktVoiceBridge();
+    if (nativeBridge) {
+      try {
+        if (isRukmini) {
+          this.playRukminiGhostlyTail(0.45);
+        }
+        nativeBridge.speak(cleanedText, rate, pitch);
+      } catch {
+        // Ignore native voice bridge errors
+      }
+      return;
+    }
+
+    if (!('speechSynthesis' in window)) {
       return;
     }
 
@@ -1034,8 +1576,6 @@ export class HorrorSynth {
         window.speechSynthesis.resume();
       }
 
-      const profileId = resolveSpeakerProfileId(voiceType, speakerName, text);
-      const isRukmini = Boolean(CHARACTER_VOICE_PROFILES[profileId].ghostlyTail);
       const utter = this.configureUtteranceWithFallback(
         text,
         voiceType,
@@ -1070,11 +1610,20 @@ export class HorrorSynth {
   }
 
   /**
-   * Stops any active sequence speech utterances cleanly without using audio oscillators.
+   * Stops any active sequence speech utterances cleanly across both Android `window.RaktVoiceBridge`
+   * and desktop `window.speechSynthesis`.
    */
   public stopSequenceSpeech() {
     this.speechCancelVersion++;
     this.stopRukminiGhostlyTail();
+    stopNativeRaktVoiceBridge();
+    if (this.activeBridgeCancelCallbacks.size > 0) {
+      const callbacks = Array.from(this.activeBridgeCancelCallbacks);
+      this.activeBridgeCancelCallbacks.clear();
+      for (const cancelFn of callbacks) {
+        cancelFn();
+      }
+    }
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       return;
     }
@@ -1094,8 +1643,8 @@ export class HorrorSynth {
   }
 
   /**
-   * Speaks a single dramatic sequence line and resolves only after the full Hindi utterance finishes
-   * (with Chromium cancel+speak race guard, resume keep-alive, and generous rate-aware safety timeout).
+   * Speaks a single dramatic sequence line via Android `window.RaktVoiceBridge` (when present)
+   * or desktop `window.speechSynthesis` strictly filtered to `hi-IN` voices, resolving once finished.
    */
   public speakSequenceUtterance(
     text: string,
@@ -1108,17 +1657,13 @@ export class HorrorSynth {
       speakerName?: string;
     },
   ): Promise<void> {
-    const profileId = resolveSpeakerProfileId(
-      voiceType,
-      opts?.speakerName,
+    const { cleanedText, rate, pitch, isRukmini } = this.getVoiceSpeechParams(
       text,
+      voiceType,
+      opts?.rateMultiplier ?? 1.0,
+      opts?.speakerName,
     );
-    const profile = CHARACTER_VOICE_PROFILES[profileId];
-    const effectiveRate = Math.max(
-      0.6,
-      Math.min(1.35, profile.rate * (opts?.rateMultiplier ?? 1.0)),
-    );
-    const estimatedMs = Math.ceil((text.length * 125) / effectiveRate) + 3800;
+    const estimatedMs = Math.ceil((cleanedText.length * 125) / rate) + 3800;
     const fallbackMs = Math.max(
       opts?.maxWaitMs ?? 0,
       Math.min(18000, Math.max(4800, estimatedMs)),
@@ -1127,9 +1672,65 @@ export class HorrorSynth {
     if (
       this.muted ||
       !this.characterVoicesEnabled ||
-      typeof window === 'undefined' ||
-      !('speechSynthesis' in window)
+      typeof window === 'undefined'
     ) {
+      return new Promise((resolve) =>
+        window.setTimeout(resolve, Math.min(fallbackMs, 3200)),
+      );
+    }
+
+    const nativeBridge = getNativeRaktVoiceBridge();
+    if (nativeBridge) {
+      const dialScale = this.effectiveDialogueVolume;
+      const userScale = opts?.volumeScale ?? 1.0;
+      if (dialScale * userScale <= 0.01 || !cleanedText) {
+        return Promise.resolve();
+      }
+      if (opts?.cancelPrevious) {
+        this.speechCancelVersion++;
+        stopNativeRaktVoiceBridge();
+        if (this.activeBridgeCancelCallbacks.size > 0) {
+          const callbacks = Array.from(this.activeBridgeCancelCallbacks);
+          this.activeBridgeCancelCallbacks.clear();
+          for (const cancelFn of callbacks) cancelFn();
+        }
+      }
+      const myCancelVersion = this.speechCancelVersion;
+      const naturalDurationMs = getNativeVoiceDurationMs(cleanedText);
+
+      return new Promise((resolve) => {
+        let settled = false;
+        let timerId = 0;
+        const finish = (completedNaturally: boolean) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timerId);
+          this.activeBridgeCancelCallbacks.delete(cancelCb);
+          if (
+            completedNaturally &&
+            isRukmini &&
+            myCancelVersion === this.speechCancelVersion
+          ) {
+            this.playRukminiGhostlyTail(1.0);
+          }
+          resolve();
+        };
+        const cancelCb = () => finish(false);
+        this.activeBridgeCancelCallbacks.add(cancelCb);
+
+        try {
+          if (isRukmini) {
+            this.playRukminiGhostlyTail(0.45);
+          }
+          nativeBridge.speak(cleanedText, rate, pitch);
+          timerId = window.setTimeout(() => finish(true), naturalDurationMs);
+        } catch {
+          finish(false);
+        }
+      });
+    }
+
+    if (!('speechSynthesis' in window)) {
       return new Promise((resolve) =>
         window.setTimeout(resolve, Math.min(fallbackMs, 3200)),
       );
@@ -1171,8 +1772,6 @@ export class HorrorSynth {
           needPostCancelDelay = true;
         }
         const myCancelVersion = this.speechCancelVersion;
-
-        const isRukmini = Boolean(profile.ghostlyTail);
 
         const beginSpeak = () => {
           if (settled || myCancelVersion !== this.speechCancelVersion) {
@@ -1293,7 +1892,7 @@ export class HorrorSynth {
     if (
       this.muted ||
       typeof window === 'undefined' ||
-      !('speechSynthesis' in window)
+      (!getNativeRaktVoiceBridge() && !('speechSynthesis' in window))
     ) {
       return;
     }

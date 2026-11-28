@@ -1,4 +1,9 @@
 import { LanguageCode } from './storyData.ts';
+import {
+  getNativeRaktVoiceBridge,
+  getNativeVoiceDurationMs,
+  stopNativeRaktVoiceBridge,
+} from './horrorAudio.ts';
 
 function pcmFloat32ToBase64Int16(float32Array: Float32Array): string {
   const int16 = new Int16Array(float32Array.length);
@@ -50,7 +55,11 @@ export class GeminiClientManager {
     this.stopSpeech();
 
     const speakWithBrowserAsyncQueue = async (rawText: string) => {
-      if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      if (typeof window === 'undefined') {
+        return;
+      }
+      const nativeBridge = getNativeRaktVoiceBridge();
+      if (!nativeBridge && !('speechSynthesis' in window)) {
         return;
       }
       const win = window as Window & {
@@ -79,6 +88,18 @@ export class GeminiClientManager {
       }
 
       for (const chunk of shortChunks) {
+        if (nativeBridge) {
+          try {
+            nativeBridge.speak(chunk, 0.9, 0.72);
+          } catch {
+            // Ignore native bridge errors
+          }
+          await new Promise<void>((resolve) =>
+            window.setTimeout(resolve, getNativeVoiceDurationMs(chunk)),
+          );
+          continue;
+        }
+
         await new Promise<void>((resolve) => {
           const utterance = new SpeechSynthesisUtterance(chunk);
           utterance.lang = 'hi-IN';
@@ -157,6 +178,7 @@ export class GeminiClientManager {
       this.currentAudio.pause();
       this.currentAudio = null;
     }
+    stopNativeRaktVoiceBridge();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       const win = window as Window & {
         activeUtterances?: SpeechSynthesisUtterance[];

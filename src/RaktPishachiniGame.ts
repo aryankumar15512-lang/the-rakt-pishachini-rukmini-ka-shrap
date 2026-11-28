@@ -416,10 +416,13 @@ export class RaktPishachiniGame extends xb.Script {
   private witchLastGoalPos = new THREE.Vector3(999, 999, 999);
   private witchStuckTimer = 0;
   private witchAlertLevel = 0; // 0 = patrol, 1 = walking toward footsteps (14m), 2 = fast chase (26m)
-  private witchSpeed = 1.45;
+  private witchSpeed = 2.2;
   private witchDistractionTimer = 0;
   private witchDistractionPos = new THREE.Vector3();
   private patrolWaypointIdx = 0;
+  private witchWhisperTimer = 4.2;
+  private witchWhisperVariant = 0;
+  private witchShriekCooldown = 0;
   private hitstopTimer = 0;
   private cameraShakeIntensity = 0;
   private lastRukminiProximity = 0;
@@ -502,17 +505,36 @@ export class RaktPishachiniGame extends xb.Script {
     joyY: 0,
   };
 
+  // 30-Second Fast Sprint Boost + 15-Second Cooldown Timer
+  public readonly sprintMaxDurationSec = 30.0;
+  public readonly sprintCooldownDurationSec = 15.0;
+  public sprintRemainingSec = 30.0;
+  public sprintCooldownRemainingSec = 0.0;
+
+  public isSprintOnCooldown(): boolean {
+    return this.sprintCooldownRemainingSec > 0.01;
+  }
+
   public isPlayerSprinting(): boolean {
-    return (
-      this.moveInput.sprint ||
-      this.moveInput.joySprint ||
-      this.autoSprintActive
-    );
+    if (
+      this.sprintCooldownRemainingSec > 0.01 ||
+      this.sprintRemainingSec <= 0.01
+    ) {
+      return false;
+    }
+    return this.moveInput.sprint || this.autoSprintActive;
   }
 
   public setAutoSprint(active: boolean) {
-    if (active && (this.gameState !== 'playing' || this.activeHidingSpot)) {
-      return;
+    if (active) {
+      if (
+        this.gameState !== 'playing' ||
+        this.activeHidingSpot ||
+        this.sprintCooldownRemainingSec > 0.01 ||
+        this.sprintRemainingSec <= 0.01
+      ) {
+        return;
+      }
     }
     if (this.autoSprintActive === active) return;
     this.autoSprintActive = active;
@@ -524,6 +546,11 @@ export class RaktPishachiniGame extends xb.Script {
   }
 
   public toggleAutoSprint() {
+    if (this.sprintCooldownRemainingSec > 0.01) {
+      this.autoSprintActive = false;
+      this.onHudUpdate?.();
+      return;
+    }
     this.setAutoSprint(!this.autoSprintActive);
   }
 
@@ -643,26 +670,38 @@ export class RaktPishachiniGame extends xb.Script {
     this.onHudUpdate?.();
   }
 
-  // Multi-floor patrol waypoints strictly INSIDE the 64m x 56m Royal Palace (22 above-ground rooms + 10-Room Basement B1)
+  // Continuous full-Haveli multi-floor patrol waypoints covering Ground Floor rooms & Darbar Hall,
+  // Back Well Courtyard, Grand Staircases, 2F balconies & rooms, 3F balconies & rooms, and Underground Maze
   private readonly witchPatrolPoints: THREE.Vector3[] = [
-    new THREE.Vector3(0.0, 0.0, 7.2), // GF Royal Atrium South Entrance
-    new THREE.Vector3(-10.5, 0.0, -3.5), // GF Royal Atrium West Colonnade
+    new THREE.Vector3(0.0, 0.0, 7.2), // GF Royal Darbar Hall South Entrance
+    new THREE.Vector3(0.0, 0.0, -5.5), // GF Royal Darbar Hall Center
+    new THREE.Vector3(-10.5, 0.0, -3.5), // GF Darbar West Colonnade
     new THREE.Vector3(-24.0, 0.0, 0.75), // GF G1: Shahi Shastragar (Armory)
     new THREE.Vector3(-24.0, 0.0, -18.0), // GF G2: Purani Rasoi & Anna-Kothi
     new THREE.Vector3(-24.0, 0.0, -36.75), // GF G5: Mehmaan Baithak
-    new THREE.Vector3(0.0, 0.0, -33.0), // GF North Corridor behind Grand Staircase
+    new THREE.Vector3(0.0, 0.0, -35.5), // GF North Corridor behind Grand Staircase
+    new THREE.Vector3(0.0, 0.0, -50.0), // Back Well Courtyard Entrance (Aangan)
+    new THREE.Vector3(-9.5, 0.0, -58.5), // Back Well Courtyard West Path
+    new THREE.Vector3(-8.0, 0.0, -69.5), // Back Well Courtyard North-West Corner
+    new THREE.Vector3(8.0, 0.0, -69.5), // Back Well Courtyard North-East Corner
+    new THREE.Vector3(9.5, 0.0, -58.5), // Back Well Courtyard East Path
+    new THREE.Vector3(0.0, 0.0, -43.75), // GF Rear Corridor Return
     new THREE.Vector3(24.0, 0.0, -36.75), // GF G6: Sevak Kaksh
     new THREE.Vector3(24.0, 0.0, -18.0), // GF G4: Prachin Pooja Ghar
     new THREE.Vector3(24.0, 0.0, 0.75), // GF G3: Munim Record Room
-    new THREE.Vector3(0.0, 5.0, 4.5), // 2F South Jharokha Balcony overlooking Atrium
+    new THREE.Vector3(0.0, 2.5, -29.0), // Grand Double-Wing Staircase Mid Landing
+    new THREE.Vector3(-17.0, 5.0, -29.0), // 2F West Balcony Top of Stairs
+    new THREE.Vector3(0.0, 5.0, 4.5), // 2F South Jharokha Balcony overlooking Darbar Hall
     new THREE.Vector3(-8.5, 5.0, 7.9), // 2F-7: Guest Suite 2
     new THREE.Vector3(8.5, 5.0, 7.9), // 2F-8: Ancestor Portrait Gallery
     new THREE.Vector3(24.0, 5.0, 0.75), // 2F-1: Rukmini's Suhaagraat Bridal Room
     new THREE.Vector3(24.0, 5.0, -18.0), // 2F-5: Rani's Shringar Kaksh
     new THREE.Vector3(24.0, 5.0, -36.75), // 2F-3: Guest Suite 1
+    new THREE.Vector3(17.0, 5.0, -29.0), // 2F East Balcony Landing
     new THREE.Vector3(-24.0, 5.0, 0.75), // 2F-2: Thakur Saheb's Master Bedroom
     new THREE.Vector3(-24.0, 5.0, -18.0), // 2F-6: Royal Dining Room
     new THREE.Vector3(-24.0, 5.0, -36.75), // 2F-4: Sangeet Hall
+    new THREE.Vector3(0.0, 5.0, -33.6), // 2F Upper Staircase Base
     new THREE.Vector3(0.0, 10.0, 4.5), // 3F South Skywell Balcony overlooking Atrium
     new THREE.Vector3(-8.5, 10.0, 7.9), // 3F-7: Attic Store 2
     new THREE.Vector3(8.5, 10.0, 7.9), // 3F-8: Front Watchtower Room
@@ -2950,7 +2989,7 @@ export class RaktPishachiniGame extends xb.Script {
       // Player entered unseen/unheard beyond 3m -> Rukmini loses the trail immediately
       this.witchHuntMode = 'patrol';
       this.witchAlertLevel = 0;
-      this.witchSpeed = 1.45;
+      this.witchSpeed = 2.2;
       this.witchPath = [];
     } else {
       // Rukmini was within 3m and actively chasing when the player climbed in!
@@ -3155,9 +3194,14 @@ export class RaktPishachiniGame extends xb.Script {
         this.lookInput.turnRight = true;
       }
       if (code === 'ShiftLeft' || code === 'ShiftRight') {
-        this.moveInput.sprint = true;
-        this.crouchHold = false;
-        this.crouchToggle = false;
+        if (
+          this.sprintCooldownRemainingSec <= 0.01 &&
+          this.sprintRemainingSec > 0.01
+        ) {
+          this.moveInput.sprint = true;
+          this.crouchHold = false;
+          this.crouchToggle = false;
+        }
       }
       if (
         (code === 'ControlLeft' || code === 'ControlRight') &&
@@ -5770,6 +5814,13 @@ export class RaktPishachiniGame extends xb.Script {
     this.lastHeartbeatCycleIndex = -1;
     this.witchPayalStridePhase = 0;
     this.lastWitchPayalStepIndex = -1;
+    this.witchWhisperTimer = 4.2;
+    this.witchShriekCooldown = 0;
+    this.sprintRemainingSec = this.sprintMaxDurationSec;
+    this.sprintCooldownRemainingSec = 0;
+    this.autoSprintActive = false;
+    this.moveInput.sprint = false;
+    this.moveInput.joySprint = false;
     this.gameState = 'playing';
     this.onPauseToggle?.(false);
     this.requestGamePointerLock();
@@ -8143,7 +8194,7 @@ export class RaktPishachiniGame extends xb.Script {
           const speedMult = this.isPlayerCrouching
             ? 2.25
             : this.isPlayerSprinting()
-              ? walkSpeed * 1.75
+              ? walkSpeed * 1.8
               : walkSpeed;
           const moveStep = speedMult * dt;
 
@@ -8289,6 +8340,19 @@ export class RaktPishachiniGame extends xb.Script {
           this.currentLoudAlertRange = 26.0;
         }
         const isMovingHorizontally = !this.activeHidingSpot && len > 0.05;
+
+        // 30-Second Sprint Boost & 15-Second Cooldown Recharge Manager
+        if (this.sprintCooldownRemainingSec > 0) {
+          this.sprintCooldownRemainingSec = Math.max(
+            0,
+            this.sprintCooldownRemainingSec - dt,
+          );
+          if (this.sprintCooldownRemainingSec <= 0) {
+            this.sprintRemainingSec = this.sprintMaxDurationSec;
+            this.onHudUpdate?.();
+          }
+        }
+
         const isActivelySprinting =
           this.gameState === 'playing' &&
           !this.isMiniCutsceneActive &&
@@ -8298,9 +8362,21 @@ export class RaktPishachiniGame extends xb.Script {
           isMovingHorizontally &&
           this.isPlayerSprinting();
 
-        if (isActivelySprinting) {
-          this.sprintBobPhase += dt * 13.5;
-          const targetBob = Math.sin(this.sprintBobPhase) * 0.055;
+        if (isActivelySprinting && this.sprintCooldownRemainingSec <= 0) {
+          this.sprintRemainingSec = Math.max(0, this.sprintRemainingSec - dt);
+          if (this.sprintRemainingSec <= 0) {
+            this.sprintRemainingSec = 0;
+            this.autoSprintActive = false;
+            this.moveInput.sprint = false;
+            this.moveInput.joySprint = false;
+            this.sprintCooldownRemainingSec = this.sprintCooldownDurationSec;
+            this.onHudUpdate?.();
+          }
+        }
+
+        if (isActivelySprinting && this.sprintCooldownRemainingSec <= 0) {
+          this.sprintBobPhase += dt * 13.8;
+          const targetBob = Math.sin(this.sprintBobPhase) * 0.058;
           this.sprintBobOffsetY = THREE.MathUtils.lerp(
             this.sprintBobOffsetY,
             targetBob,
@@ -8317,7 +8393,10 @@ export class RaktPishachiniGame extends xb.Script {
           }
         }
 
-        const targetFovBoost = isActivelySprinting ? 6.0 : 0.0;
+        const targetFovBoost =
+          isActivelySprinting && this.sprintCooldownRemainingSec <= 0
+            ? 6.5
+            : 0.0;
         this.sprintFovBoost = THREE.MathUtils.lerp(
           this.sprintFovBoost,
           targetFovBoost,
@@ -8731,6 +8810,26 @@ export class RaktPishachiniGame extends xb.Script {
           witchRoot.position.z - localPlayerZ,
         );
 
+        // Directional stereo pan (-0.95 left .. +0.95 right) relative to player's facing camera
+        const camYawForAudio = cam.rotation.y;
+        const audioRightX = Math.cos(camYawForAudio);
+        const audioRightZ = -Math.sin(camYawForAudio);
+        const toWitchAudioX = witchRoot.position.x - localPlayerX;
+        const toWitchAudioZ = witchRoot.position.z - localPlayerZ;
+        const toWitchAudioHoriz = Math.hypot(toWitchAudioX, toWitchAudioZ);
+        const witchStereoPan =
+          toWitchAudioHoriz > 0.25
+            ? THREE.MathUtils.clamp(
+                (toWitchAudioX * audioRightX + toWitchAudioZ * audioRightZ) /
+                  toWitchAudioHoriz,
+                -0.95,
+                0.95,
+              )
+            : 0;
+
+        this.witchShriekCooldown = Math.max(0, this.witchShriekCooldown - dt);
+        this.witchWhisperTimer = Math.max(0, this.witchWhisperTimer - dt);
+
         const isLoudMovement =
           this.loudActionTimer > 0 ||
           !this.isGrounded ||
@@ -8746,15 +8845,16 @@ export class RaktPishachiniGame extends xb.Script {
           : isLoudMovement
             ? loudHearingRange
             : walkHearingRange;
+        const CHASE_ESCAPE_RANGE = 30.0;
 
-        const movedOutsideWalkingRange =
-          this.isPlayerMakingSound &&
-          !isLoudMovement &&
-          rawDistToPlayer > walkHearingRange;
-        const movedOutsideLoudRange =
-          this.isPlayerMakingSound &&
-          isLoudMovement &&
-          rawDistToPlayer > loudHearingRange;
+        const patrolBaseSpeed = 2.2 * rageSpeedMult;
+        // Chase speeds are faster than normal walking speed (3.9 m/s) so walking alone cannot outrun her,
+        // while 30-second fast Sprint Boost (7.02 m/s) lets the player escape past 30m!
+        const walkChaseSpeed = 4.65 * rageSpeedMult;
+        const fastChaseSpeed = 5.25 * rageSpeedMult;
+
+        const canEnterBackWell = !this.isWellDoorLockedForRespawn;
+        const prevHuntMode = this.witchHuntMode;
 
         if (this.witchStunnedTimer > 0) {
           this.witchStunnedTimer = Math.max(0, this.witchStunnedTimer - dt);
@@ -8765,6 +8865,15 @@ export class RaktPishachiniGame extends xb.Script {
             this.witchDistractionTimer - dt,
           );
         }
+
+        const resumePatrolFromChase = () => {
+          this.witchHuntMode = 'patrol';
+          this.witchAlertLevel = this.burnedCount >= 3 ? 1.0 : 0;
+          this.witchSpeed = patrolBaseSpeed;
+          this.witchPath = [];
+          this.patrolWaypointIdx =
+            (this.patrolWaypointIdx + 1) % patrolWaypoints.length;
+        };
 
         if (this.witchStunnedTimer > 0) {
           // Blinded & stunned in place for 5 full seconds by Watchman Baba's Blessed Bhabhut
@@ -8785,7 +8894,7 @@ export class RaktPishachiniGame extends xb.Script {
         } else if (this.activeHidingSpot && this.compromisedInHiding) {
           this.witchHuntMode = 'fast_chase';
           this.witchAlertLevel = 2.0;
-          this.witchSpeed = 3.35 * rageSpeedMult;
+          this.witchSpeed = fastChaseSpeed;
           this.witchHeardSoundPos.set(
             this.activeHidingSpot.exitPos.x,
             this.activeHidingSpot.floorY,
@@ -8801,33 +8910,31 @@ export class RaktPishachiniGame extends xb.Script {
           const distToDistraction = witchRoot.position.distanceTo(
             this.witchDistractionPos,
           );
-          this.witchSpeed = distToDistraction > 0.85 ? 3.45 * rageSpeedMult : 0.0;
+          this.witchSpeed = distToDistraction > 0.85 ? fastChaseSpeed : 0.0;
           if (this.witchSpeed === 0) {
             this.witchModel.headGroup.rotation.y = Math.sin(time * 3.4) * 0.48;
           }
           if (this.witchDistractionTimer <= 0) {
-            this.witchHuntMode = 'patrol';
-            this.witchAlertLevel = 0;
-            this.witchSpeed = 1.45 * rageSpeedMult;
-            this.witchPath = [];
+            resumePatrolFromChase();
           }
         } else if (
           !isPlayerInside ||
           (this.activeHidingSpot && !this.compromisedInHiding) ||
-          this.playerSilenceTimer >= 2.0 ||
-          movedOutsideWalkingRange ||
-          movedOutsideLoudRange
+          rawDistToPlayer >= CHASE_ESCAPE_RANGE
         ) {
           if (this.witchHuntMode !== 'patrol') {
-            this.witchHuntMode = 'patrol';
-            this.witchAlertLevel = 0;
-            this.witchSpeed = 1.45 * rageSpeedMult;
-            this.witchPath = [];
+            resumePatrolFromChase();
           }
         } else if (
           this.isPlayerMakingSound &&
           rawDistToPlayer <= currentHearingRange
         ) {
+          const heardMinZ =
+            this.playerFloorY < -0.5
+              ? -79.2
+              : canEnterBackWell && Math.abs(localPlayerX) <= 17.8
+                ? -74.5
+                : -45.2;
           this.witchHeardSoundPos.set(
             THREE.MathUtils.clamp(
               localPlayerX,
@@ -8835,20 +8942,31 @@ export class RaktPishachiniGame extends xb.Script {
               this.playerFloorY < -0.5 ? 27.2 : 31.0,
             ),
             this.playerFloorY,
-            THREE.MathUtils.clamp(
-              localPlayerZ,
-              this.playerFloorY < -0.5 ? -79.2 : -45.2,
-              9.0,
-            ),
+            THREE.MathUtils.clamp(localPlayerZ, heardMinZ, 9.0),
           );
           if (isLoudMovement) {
             this.witchHuntMode = 'fast_chase';
             this.witchAlertLevel = 2.0;
-            this.witchSpeed = 3.35 * rageSpeedMult;
+            this.witchSpeed = fastChaseSpeed;
           } else {
             this.witchHuntMode = 'walk_investigate';
             this.witchAlertLevel = 1.0;
-            this.witchSpeed = 2.05 * rageSpeedMult;
+            this.witchSpeed = walkChaseSpeed;
+          }
+          if (prevHuntMode === 'patrol' && this.witchShriekCooldown <= 0) {
+            this.witchShriekCooldown = 6.5;
+            this.synth.playWitchShriek(rawDistToPlayer, witchStereoPan);
+          }
+        } else if (this.witchHuntMode !== 'patrol') {
+          // Keep chasing toward last heard sound position until reaching it or player stays silent
+          this.witchSpeed =
+            this.witchHuntMode === 'fast_chase'
+              ? fastChaseSpeed
+              : walkChaseSpeed;
+          const reachedHeardSpot =
+            witchRoot.position.distanceTo(this.witchHeardSoundPos) < 1.15;
+          if (reachedHeardSpot || this.playerSilenceTimer >= 3.2) {
+            resumePatrolFromChase();
           }
         }
 
@@ -8859,15 +8977,6 @@ export class RaktPishachiniGame extends xb.Script {
           this.witchHuntMode !== 'patrol'
         ) {
           this.witchTargetPos.copy(this.witchHeardSoundPos);
-          if (
-            !this.isPlayerMakingSound &&
-            witchRoot.position.distanceTo(this.witchHeardSoundPos) < 0.85
-          ) {
-            this.witchHuntMode = 'patrol';
-            this.witchAlertLevel = 0;
-            this.witchSpeed = 1.45 * rageSpeedMult;
-            this.witchPath = [];
-          }
         }
 
         if (
@@ -8875,11 +8984,23 @@ export class RaktPishachiniGame extends xb.Script {
           this.witchHuntMode === 'patrol' &&
           this.witchDistractionTimer <= 0
         ) {
+          // Skip Back Well Courtyard patrol points only if the Back Well door is temporarily locked
+          let guardLoops = 0;
+          while (
+            !canEnterBackWell &&
+            patrolWaypoints[this.patrolWaypointIdx].y >= -0.5 &&
+            patrolWaypoints[this.patrolWaypointIdx].z < -46.0 &&
+            guardLoops < patrolWaypoints.length
+          ) {
+            this.patrolWaypointIdx =
+              (this.patrolWaypointIdx + 1) % patrolWaypoints.length;
+            guardLoops++;
+          }
           const wp = patrolWaypoints[this.patrolWaypointIdx];
           this.witchTargetPos.copy(wp);
-          this.witchSpeed = 1.45 * rageSpeedMult;
+          this.witchSpeed = patrolBaseSpeed;
           this.witchAlertLevel = this.burnedCount >= 3 ? 1.0 : 0;
-          if (witchRoot.position.distanceTo(wp) < 0.95) {
+          if (witchRoot.position.distanceTo(wp) < 1.15) {
             this.patrolWaypointIdx =
               (this.patrolWaypointIdx + 1) % patrolWaypoints.length;
             this.witchTargetPos.copy(patrolWaypoints[this.patrolWaypointIdx]);
@@ -8887,7 +9008,7 @@ export class RaktPishachiniGame extends xb.Script {
           }
         }
 
-        // Handle Witch Rukmini pausing for 1.8 seconds at a closed room door to push it open before entering
+        // Handle Witch Rukmini briefly pushing open a closed room door before entering
         if (this.witchStunnedTimer <= 0 && this.witchDoorPauseDoor && this.haveli) {
           const pausedDoor = this.witchDoorPauseDoor;
           if (pausedDoor.isOpen) {
@@ -8903,8 +9024,10 @@ export class RaktPishachiniGame extends xb.Script {
               10,
               dt,
             );
+            const doorTotalPause =
+              this.witchHuntMode !== 'patrol' ? 0.75 : 1.15;
             const pushProgress = THREE.MathUtils.clamp(
-              1 - this.witchDoorPauseTimer / 1.8,
+              1 - this.witchDoorPauseTimer / doorTotalPause,
               0,
               1,
             );
@@ -8959,7 +9082,7 @@ export class RaktPishachiniGame extends xb.Script {
             }
             this.witchLastGoalPos.copy(this.witchTargetPos);
             this.witchPathTimer =
-              this.witchHuntMode !== 'patrol' ? 0.35 : 1.1;
+              this.witchHuntMode !== 'patrol' ? 0.3 : 1.0;
           }
 
           let currentWaypoint =
@@ -8972,7 +9095,7 @@ export class RaktPishachiniGame extends xb.Script {
             currentWaypoint.y - witchRoot.position.y,
           );
 
-          if (horizDistToWp < 0.45 && vertDistToWp < 1.35) {
+          if (horizDistToWp < 0.55 && vertDistToWp < 1.35) {
             if (this.witchPathIdx < this.witchPath.length - 1) {
               this.witchPathIdx++;
               currentWaypoint = this.witchPath[this.witchPathIdx];
@@ -9030,10 +9153,17 @@ export class RaktPishachiniGame extends xb.Script {
             }
           }
 
+          const computeWitchMinZ = (wx: number, wy: number) => {
+            if (wy < -0.5) return -79.2;
+            if (canEnterBackWell && Math.abs(wx) <= 17.8) return -74.5;
+            return -45.2;
+          };
+
           if (blockingClosedDoor) {
-            // Pause 1.8 seconds to forcefully push open the closed room door before entering
+            // Brief aggressive shove to burst open a closed room door (faster when chasing!)
             this.witchDoorPauseDoor = blockingClosedDoor;
-            this.witchDoorPauseTimer = 1.8;
+            this.witchDoorPauseTimer =
+              this.witchHuntMode !== 'patrol' ? 0.75 : 1.15;
             this.witchDoorPushFaceYaw = Math.atan2(
               blockingClosedDoor.position.x - prevWitchX,
               blockingClosedDoor.position.z - prevWitchZ,
@@ -9044,13 +9174,13 @@ export class RaktPishachiniGame extends xb.Script {
             const stepDist = Math.min(horizDist, this.witchSpeed * dt);
             const dirX = moveDx / horizDist;
             const dirZ = moveDz / horizDist;
-            const witchMinZ = witchRoot.position.y < -0.5 ? -79.2 : -45.2;
             const witchMaxX = witchRoot.position.y < -0.5 ? 27.2 : 31.0;
             const desiredWitchX = THREE.MathUtils.clamp(
               prevWitchX + dirX * stepDist,
               -witchMaxX,
               witchMaxX,
             );
+            const witchMinZ = computeWitchMinZ(desiredWitchX, witchRoot.position.y);
             const desiredWitchZ = THREE.MathUtils.clamp(
               prevWitchZ + dirZ * stepDist,
               witchMinZ,
@@ -9070,9 +9200,13 @@ export class RaktPishachiniGame extends xb.Script {
               -witchMaxX,
               witchMaxX,
             );
+            const resolvedMinZ = computeWitchMinZ(
+              witchRoot.position.x,
+              witchRoot.position.y,
+            );
             witchRoot.position.z = THREE.MathUtils.clamp(
               resolvedWitch.z,
-              witchMinZ,
+              resolvedMinZ,
               9.0,
             );
 
@@ -9097,7 +9231,7 @@ export class RaktPishachiniGame extends xb.Script {
             );
             if (actualMoved < stepDist * 0.15) {
               this.witchStuckTimer += dt;
-              if (this.witchStuckTimer > 0.75) {
+              if (this.witchStuckTimer > 0.55) {
                 this.witchStuckTimer = 0;
                 if (this.witchHuntMode === 'patrol') {
                   this.patrolWaypointIdx =
@@ -9113,12 +9247,18 @@ export class RaktPishachiniGame extends xb.Script {
             witchRoot.rotation.y = THREE.MathUtils.damp(
               witchRoot.rotation.y,
               targetYaw,
-              7,
+              8.5,
               dt,
             );
           } else if (this.haveli) {
-            const witchMinZ = witchRoot.position.y < -0.5 ? -79.2 : -45.2;
+            // Never idle in place during patrol — advance immediately to the next room/floor waypoint
+            if (this.witchHuntMode === 'patrol' && this.witchDistractionTimer <= 0) {
+              this.patrolWaypointIdx =
+                (this.patrolWaypointIdx + 1) % patrolWaypoints.length;
+              this.witchPath = [];
+            }
             const witchMaxX = witchRoot.position.y < -0.5 ? 27.2 : 31.0;
+            const witchMinZ = computeWitchMinZ(prevWitchX, witchRoot.position.y);
             const stationaryWitch = this.haveli.resolveCollision(
               prevWitchX,
               prevWitchZ,
@@ -9169,7 +9309,25 @@ export class RaktPishachiniGame extends xb.Script {
         this.updateHeartbeatVignette(indoorDistToPlayer, dt);
         void this.synth.playPanickedBreathing(effectiveDistToPlayer);
 
-        // Sync soft silver Payal (anklet) jingle footsteps directly to Rukmini's actual walking steps
+        // Directional eerie spectral whispers as Rukmini prowls or hunts within 28m
+        if (
+          isPlayerInside &&
+          rawDistToPlayer <= 28.0 &&
+          this.witchStunnedTimer <= 0 &&
+          this.witchWhisperTimer <= 0
+        ) {
+          this.witchWhisperTimer =
+            this.witchHuntMode !== 'patrol'
+              ? 3.8 + Math.random() * 2.4
+              : 5.8 + Math.random() * 3.4;
+          this.synth.playWitchEerieWhisper(
+            rawDistToPlayer,
+            witchStereoPan,
+            this.witchWhisperVariant++,
+          );
+        }
+
+        // Sync louder directional silver Payal (anklet jingles) + heavy footsteps to Rukmini's actual steps
         const witchStepMoved = Math.hypot(
           witchRoot.position.x - witchStepStartX,
           witchRoot.position.z - witchStepStartZ,
@@ -9180,16 +9338,16 @@ export class RaktPishachiniGame extends xb.Script {
           this.witchStunnedTimer <= 0 &&
           !this.witchDoorPauseDoor
         ) {
-          const isWitchRunning = this.witchSpeed > 2.45;
-          const baseStrideRate = Math.max(3.6, this.witchSpeed * 3.55);
+          const isWitchRunning = this.witchSpeed > 3.2;
+          const baseStrideRate = Math.max(4.0, this.witchSpeed * 2.85);
           const strideRate = isWitchRunning
-            ? Math.min(9.6, baseStrideRate)
+            ? Math.min(11.5, baseStrideRate)
             : baseStrideRate;
           this.witchPayalStridePhase += dt * strideRate;
           const stepIdx = Math.floor(this.witchPayalStridePhase / Math.PI);
           if (stepIdx !== this.lastWitchPayalStepIndex) {
             this.lastWitchPayalStepIndex = stepIdx;
-            if (isPlayerInside && rawDistToPlayer < 24.0) {
+            if (isPlayerInside && rawDistToPlayer < 34.0) {
               const floorDiff = Math.abs(
                 witchRoot.position.y - this.playerFloorY,
               );
@@ -9199,6 +9357,7 @@ export class RaktPishachiniGame extends xb.Script {
                 this.witchSpeed,
                 stepIdx,
                 floorDiff,
+                witchStereoPan,
               );
             }
           }

@@ -4116,18 +4116,164 @@ body.controls-mode-pc .hud-autosprint-slot {
 }
 
 .autosprint-circle-btn {
-  width: 46px;
-  height: 46px;
+  position: relative;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  overflow: visible;
+}
+
+.autosprint-circle-btn .sprint-ring-svg {
+  position: absolute;
+  inset: -3px;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+
+.sprint-ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 3;
+}
+
+.sprint-ring-fill {
+  fill: none;
+  stroke: #fbbf24;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-dasharray: 122.52;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.12s linear, stroke 0.2s ease;
+}
+
+.autosprint-circle-btn .sprint-runner-icon {
+  width: 17px;
+  height: 17px;
+  margin-top: -1px;
+  pointer-events: none;
+}
+
+.autosprint-circle-btn .sprint-timer-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #fef3c7;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  margin-top: 1px;
+  pointer-events: none;
 }
 
 .autosprint-circle-btn.active {
-  background: linear-gradient(135deg, rgba(249, 115, 22, 0.92), rgba(245, 158, 11, 0.9));
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.94), rgba(245, 158, 11, 0.92));
   border-color: #fde047;
   color: #fffbeb;
   box-shadow:
-    0 0 22px rgba(249, 115, 22, 0.85),
-    0 0 10px rgba(250, 204, 21, 0.7),
+    0 0 22px rgba(249, 115, 22, 0.88),
+    0 0 10px rgba(250, 204, 21, 0.72),
     inset 0 0 12px rgba(254, 240, 138, 0.45);
+}
+
+.autosprint-circle-btn.active .sprint-ring-fill {
+  stroke: #fef08a;
+  filter: drop-shadow(0 0 5px rgba(253, 224, 71, 0.95));
+}
+
+.autosprint-circle-btn.recharging {
+  background: rgba(15, 23, 42, 0.86);
+  border-color: rgba(148, 163, 184, 0.45);
+  color: #94a3b8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+  opacity: 0.92;
+}
+
+.autosprint-circle-btn.recharging .sprint-ring-fill {
+  stroke: #38bdf8;
+  filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.8));
+}
+
+.autosprint-circle-btn.recharging .sprint-timer-label {
+  color: #7dd3fc;
+}
+
+.pc-sprint-boost-pill {
+  position: fixed;
+  left: calc(74px + env(safe-area-inset-left, 0px));
+  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 11px 5px 7px;
+  border-radius: 999px;
+  background: rgba(10, 12, 18, 0.82);
+  border: 1px solid rgba(251, 191, 36, 0.42);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.pc-sprint-boost-pill.hidden {
+  display: none !important;
+}
+
+body.touch-device:not(.controls-mode-pc) .pc-sprint-boost-pill,
+body.controls-mode-mobile .pc-sprint-boost-pill {
+  display: none !important;
+}
+
+.pc-sprint-ring-svg {
+  width: 28px;
+  height: 28px;
+  transform: rotate(-90deg);
+  flex-shrink: 0;
+}
+
+.pc-sprint-ring-svg .sprint-ring-fill {
+  stroke-dasharray: 94.25;
+  stroke-dashoffset: 0;
+}
+
+.pc-sprint-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+}
+
+.pc-sprint-state {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #fcd34d;
+}
+
+.pc-sprint-timer {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #fffbeb;
+}
+
+.pc-sprint-boost-pill.active {
+  border-color: #fde047;
+  box-shadow: 0 0 18px rgba(249, 115, 22, 0.58);
+}
+
+.pc-sprint-boost-pill.recharging {
+  border-color: rgba(56, 189, 248, 0.55);
+}
+
+.pc-sprint-boost-pill.recharging .sprint-ring-fill {
+  stroke: #38bdf8;
+}
+
+.pc-sprint-boost-pill.recharging .pc-sprint-state,
+.pc-sprint-boost-pill.recharging .pc-sprint-timer {
+  color: #7dd3fc;
 }
 
 .hud-backpack-slot {
@@ -7963,15 +8109,24 @@ body.notch-safe-off .lobby-bottom-bar {
     font-size: 0.48rem;
   }
   .hud-autosprint-slot {
-    left: calc(42px + env(safe-area-inset-left, 0px));
+    left: calc(38px + env(safe-area-inset-left, 0px));
     bottom: calc(114px + env(safe-area-inset-bottom, 0px));
   }
-  .autosprint-circle-btn,
+  .autosprint-circle-btn {
+    width: 40px !important;
+    height: 40px !important;
+  }
   .backpack-circle-btn {
     width: 34px !important;
     height: 34px !important;
   }
-  .autosprint-circle-btn svg,
+  .autosprint-circle-btn .sprint-runner-icon {
+    width: 14px;
+    height: 14px;
+  }
+  .autosprint-circle-btn .sprint-timer-label {
+    font-size: 0.52rem;
+  }
   .backpack-circle-btn svg {
     width: 15px;
     height: 15px;

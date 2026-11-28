@@ -11743,6 +11743,10 @@ export function buildThakurHaveli(buildOptions?: {
     { id: 'gf_corridor_back_center', x: 0.0, y: 0.0, z: -43.75 },
     { id: 'gf_door_g6_out', x: 17.0, y: 0.0, z: -43.75 },
     { id: 'gf_back_well', x: 0.0, y: 0.0, z: -50.0 },
+    { id: 'gf_well_west', x: -9.5, y: 0.0, z: -58.5 },
+    { id: 'gf_well_east', x: 9.5, y: 0.0, z: -58.5 },
+    { id: 'gf_well_north_w', x: -8.0, y: 0.0, z: -69.5 },
+    { id: 'gf_well_north_e', x: 8.0, y: 0.0, z: -69.5 },
 
     // GF West Wing: G1 (z: -8.5..10), G2 (z: -27.5..-8.5), G5 (z: -46..-27.5)
     { id: 'gf_door_g1_in', x: -21.0, y: 0.0, z: 0.75 },
@@ -11982,6 +11986,11 @@ export function buildThakurHaveli(buildOptions?: {
   linkNavNodes('gf_rear_w', 'gf_corridor_back_center');
   linkNavNodes('gf_corridor_back_center', 'gf_door_g6_out');
   linkNavNodes('gf_corridor_back_center', 'gf_back_well', 'door_back_well');
+  linkNavNodes('gf_back_well', 'gf_well_west');
+  linkNavNodes('gf_back_well', 'gf_well_east');
+  linkNavNodes('gf_well_west', 'gf_well_north_w');
+  linkNavNodes('gf_well_north_w', 'gf_well_north_e');
+  linkNavNodes('gf_well_north_e', 'gf_well_east');
 
   // GF Wing Rooms G1..G6
   linkNavNodes('gf_door_g1_out', 'gf_door_g1_in', 'door_g1_shastragar');

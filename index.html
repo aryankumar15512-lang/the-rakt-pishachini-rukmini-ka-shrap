@@ -1618,7 +1618,7 @@
         <div id="crosshair-hint" class="crosshair-hint hidden">✋</div>
       </div>
 
-      <!-- Bottom-Left Zone: 1-Tap Auto-Sprint (above), Virtual Joystick, & Backpack Icon (beside) -->
+      <!-- Bottom-Left Zone: 1-Tap 30s Sprint Boost (above), Virtual Joystick, & Backpack Icon (beside) -->
       <div
         class="hud-autosprint-slot"
         id="hud-ctrl-autosprint"
@@ -1628,11 +1628,36 @@
           id="autosprint-action-btn"
           type="button"
           class="hud-circle-btn autosprint-circle-btn"
-          title="1-Tap Auto-Sprint (तेज़ दौड़)"
-          aria-label="Toggle Auto-Sprint"
+          title="30s Sprint Boost (तेज़ दौड़)"
+          aria-label="Toggle 30-Second Sprint Boost"
           aria-pressed="false"
         >
-          <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg
+            class="sprint-ring-svg"
+            viewBox="0 0 44 44"
+            aria-hidden="true"
+          >
+            <circle class="sprint-ring-track" cx="22" cy="22" r="19.5" />
+            <circle
+              id="sprint-ring-fill"
+              class="sprint-ring-fill"
+              cx="22"
+              cy="22"
+              r="19.5"
+            />
+          </svg>
+          <svg
+            class="sprint-runner-icon"
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
             <circle cx="14.5" cy="4.5" r="2" />
             <path d="M11 8.5l2.5 1.8 3.2-1.3" />
             <path d="M12.5 10.3l-2.3 4.2 3.8 2-1.2 4" />
@@ -1640,7 +1665,30 @@
             <path d="M4 10h3.5" opacity="0.65" />
             <path d="M3 13h3" opacity="0.45" />
           </svg>
+          <span id="sprint-timer-label" class="sprint-timer-label">30s</span>
         </button>
+      </div>
+
+      <!-- Compact PC Shift 30s Sprint Boost Badge (hidden on mobile; shows on PC while sprinting or recharging) -->
+      <div
+        id="pc-sprint-boost-pill"
+        class="pc-sprint-boost-pill hidden"
+        aria-live="off"
+      >
+        <svg class="pc-sprint-ring-svg" viewBox="0 0 36 36" aria-hidden="true">
+          <circle class="sprint-ring-track" cx="18" cy="18" r="15" />
+          <circle
+            id="pc-sprint-ring-fill"
+            class="sprint-ring-fill"
+            cx="18"
+            cy="18"
+            r="15"
+          />
+        </svg>
+        <div class="pc-sprint-meta">
+          <span id="pc-sprint-state-text" class="pc-sprint-state">SPRINT</span>
+          <span id="pc-sprint-timer-text" class="pc-sprint-timer">30s</span>
+        </div>
       </div>
 
       <div class="controls-overlay" id="hud-ctrl-joystick" data-hud-control="joystick">
